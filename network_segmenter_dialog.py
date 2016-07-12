@@ -39,3 +39,44 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+
+        self.networkText.setPlaceholderText("Save as temporary layer...")
+        self.networkSaveButton.clicked.connect(self.setNetworkOutput)
+
+    def setNetworkLayers(self, names):
+        layers = ['-----']
+        if names:
+            layers = []
+            layers.extend(names)
+        self.networkCombo.clear()
+        self.networkCombo.addItems(layers)
+
+    def getNetwork(self):
+        return self.networkCombo.currentText()
+
+    def setUnlinkLayers(self, names):
+        layers = ['-----']
+        if names:
+            layers = []
+            layers.extend(names)
+        self.unlinkCombo.clear()
+        self.unlinkCombo.addItems(layers)
+
+    def getUnlinks(self):
+        return self.unlinkCombo.currentText()
+
+    def setNetworkOutput(self):
+        file_name = QtGui.QFileDialog.getSaveFileName(self, "Save output file ", "segment_network", '*.shp')
+        if file_name:
+            self.networkText.setText(file_name)
+
+    def getNetworkOutput(self):
+        return self.networkText.text()
+
+    def closeDialog(self):
+        self.networkCombo.clear()
+        self.unlinkCombo.clear()
+        self.stubSpin.setValue(0.25)
+        self.networkText.clear()
+        self.analysisProgress.reset()
+        self.close()

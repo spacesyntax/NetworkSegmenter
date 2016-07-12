@@ -28,6 +28,11 @@ import resources
 from network_segmenter_dialog import NetworkSegmenterDialog
 import os.path
 
+# Import tool classes
+import network_segmenter_tool
+
+# Import utility tools
+import utility_functions as uf
 
 class NetworkSegmenter:
     """QGIS Plugin Implementation."""
@@ -44,6 +49,8 @@ class NetworkSegmenter:
         self.iface = iface
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
+        # Initialize analysis
+        # self.networkSegmenter = network_segmenter_tool.networkSegmenter(self.iface)
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
@@ -163,7 +170,7 @@ class NetworkSegmenter:
         icon_path = ':/plugins/NetworkSegmenter/icon.png'
         self.add_action(
             icon_path,
-            text=self.tr(u'Network segmenter'),
+            text=self.tr(u'Network Segmenter'),
             callback=self.run,
             parent=self.iface.mainWindow())
 
@@ -178,202 +185,68 @@ class NetworkSegmenter:
         # remove the toolbar
         del self.toolbar
 
+    def updateLayers(self):
+        self.updateNetwork()
+        self.updateOrigins()
+
+
+    def updateNetwork(self):
+        network_layers = uf.getLegendLayersNames(self.iface, geom=[1, ], provider='all')
+        self.dlg.setNetworkLayers(network_layers)
+
+
+    def updateOrigins(self):
+        unlink_layers = uf.getLegendLayersNames(self.iface, geom=[0, ], provider='all')
+        self.dlg.setUnlinkLayers(unlink_layers)
+
+
+    def getNetwork(self):
+        return uf.getLegendLayerByName(self.iface, self.dlg.getNetwork())
+
+
+    def getUnlinks(self):
+        return uf.getLegendLayerByName(self.iface, self.dlg.getUnlinks())
+
+
+    def tempNetwork(self, epsg):
+        if self.dlg.networkCheck.isChecked():
+            output_network = uf.createTempLayer(
+                'segment_network',
+                'LINESTRING',
+                epsg,
+                ['id', ],
+                [QVariant.Int, ]
+            )
+            return output_network
+
+
+    def getSettings(self):
+        # Creating a combined settings dictionary
+        settings = {}
+
+        # Get settings from the dialog
+        settings['network'] = self.getNetwork()
+        settings['unlinks'] = self.getUnlinks()
+        settings['stub ratio'] = self.getStubRatio()
+        settings['unlink buffer'] = 5
+        settings['epsg'] = self.getNetwork().crs().authid()
+        settings['crs'] = self.getNetwork().crs()
+        settings['temp network'] = self.tempNetwork(str(settings['epsg']).replace("EPSG:", ''))
+        settings['out network'] = self.dlg.getNetworkOutput()
+
+    def segmentNetwork(self):
+        self.dlg.analysisProgress.reset()
+        # Getting al the settings
+        settings = self.getSettings()
+        self.dlg.analysisProgress.setValue(1)
+
+
+
+        # Write and render the segment network
+        pass
 
     def run(self):
-        """Run method that performs all the real work"""
         # show the dialog
         self.dlg.show()
-        # Run the dialog event loop
-        result = self.dlg.exec_()
-        # See if OK was pressed
-        if result:
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
-            pass
-def network_preparation(self, network_vector, network_cost_field, unlink_vector, topology_bool, stub_ratio):
-
-        # Settings
-        unlink_buffer = 5
-
-        # Variables
-        network_crs = network_vector.crs()
-        network_epsg = network_crs.authid()
-        segment_index = QgsSpatialIndex()
-        segment_dict = {}
-        unlink_index = QgsSpatialIndex()
-
-        # Output network
-        network = uf.createTempLayer('network','LINESTRING', network_crs,['cost',],[QVariant.Int,])
-
-        if not network_vector:
-            uf.giveWarningMessage("No network layer selected!")
-
-        else:
-
-            # Check network layer validity
-            if not network_vector.isValid():
-                uf.giveWarningMessage("Invalid network layer!")
-
-            # Check if network layer contains lines
-            elif not (network_vector.wkbType() == 2 or network_vector.wkbType() == 5):
-                uf.giveWarningMessage("Network layer contains no lines!")
-
-        # Check unlink layer geometry type
-        if unlink_vector:
-
-            origin_type = uf.getGeomType(unlink_vector)
-
-        # If network is not topological start segmentation
-        if topology_bool == False:
-
-            # Insert segments of network to the spatial index and dictionary
-            for segment in network_vector.getFeatures():
-
-                # Add segment to spatial index
-                segment_index.insertFeature(segment)
-
-                # Create
-                segment_dict[segment.id()] = {'geom' : segment.geometryAndOwnership(), 'cost' : None}
-
-                # If exist append custom cost to segment dictionary
-                if network_cost_field:
-                    segment_dict[segment.id()]['cost'] = segment[network_cost_field]
-
-            # Create index of unlinks
-            if unlink_vector:
-                for unlink in unlink_vector.getFeatures():
-
-                    # Create unlink area when unlinks are points
-                    if origin_type == 'point':
-
-                        # Create unlink area 5m around the point
-                        unlink_geom = unlink.geometry().buffer(unlink_buffer, 5)
-                        unlink_area = QgsFeature()
-                        unlink_area.setGeometry(unlink_geom)
-
-                    # Create unlink area when unlinks are polygons or lines
-                    else:
-                        unlink_area = unlink
-
-                    # Add unlink to index and to dictionary
-                    unlink_index.insertFeature(unlink_area)
-
-            # Break each segment based on intersecting lines and unlinks
-            for segment_id, att in segment_dict.items():
-
-                # Get geometry, length, cost from segment
-                segment_geom = att['geom']
-                segment_length = segment_geom.length()
-
-                if network_cost_field:
-                    segment_cost = att['cost']
-
-                    # Calculate cost ratio
-                    cost_ratio = segment_length/segment_cost
-
-                # Get points from original segment
-                seg_start_point = segment_geom.asPolyline()[0]
-                seg_end_point = segment_geom.asPolyline()[-1]
-
-                # List of break points for the new segments
-                break_points = []
-
-                # Identify intersecting segments
-                intersecting_segments_ids = segment_index.intersects(segment_geom.boundingBox())
-
-                # Loop for intersecting segments excluding itself
-                for id in intersecting_segments_ids:
-
-                    # Skip if segment is itself
-                    if id == segment_id:
-                        continue
-
-                    # Break segment according to remaining intersecting segment
-                    else:
-
-                        # Get geometry of intersecting segment
-                        int_seg_geom = segment_dict[id]
-
-                        # Identify the construction point of the new segment
-                        if segment_geom.crosses(int_seg_geom) or segment_geom.touches(int_seg_geom):
-
-                            # Create point where lines cross
-                            point_geom = segment_geom.intersection(int_seg_geom)
-
-                            # Create polygon of inters
-                            point_buffer_geom = point_geom.buffer(1, 1).boundingBox()
-
-                            # Check if cross point is an unlink
-                            if not unlink_index.intersects(point_buffer_geom):
-                                # Break points of intersecting lines
-                                break_points.append(point_geom.asPoint())
-
-                # Sort break_points according to distance to start point
-                break_points.sort(key=lambda x: QgsDistanceArea().measureLine(seg_start_point, x))
-
-                # Create segments using break points
-                for i in range(0, len(break_points) - 1):
-                    # Set end points
-                    start_geom = QgsPoint(break_points[i])
-                    end_geom = QgsPoint(break_points[i + 1])
-
-                    # Create new geometry and cost and write to network
-                    line_geom = QgsGeometry.fromPolyline([start_geom, end_geom])
-                    if network_cost_field:
-                        line_cost = line_geom.length() * cost_ratio
-                    else:
-                        line_cost = ''
-                    uf.insertTempFeatures(network,line_geom,line_cost)
-
-                # Check if first segment is a potential stub
-                for point in break_points:
-
-                    if point != seg_start_point:
-
-                        # Calculate distance between point and start point
-                        distance_nearest_break = QgsDistanceArea().measureLine(seg_start_point, break_points[0])
-
-                        # Only add first segment if it is a dead end
-                        if distance_nearest_break > (stub_ratio * segment_length):
-
-                            # Create new geometry and cost and write to network
-                            line_geom = QgsGeometry.fromPolyline([seg_start_point, break_points[0]])
-                            if network_cost_field:
-                                line_cost = line_geom.length() * cost_ratio
-                            else:
-                                line_cost = ''
-                            uf.insertTempFeatures(network, line_geom, line_cost)
-
-                    # Check if last segment is a potential stub
-                    elif point != seg_end_point:
-
-                        # Calculate distance between point and end point
-                        distance_nearest_break = QgsDistanceArea().measureLine(seg_end_point, break_points[-1])
-
-                        # Only add last segment if it is a dead end
-                        if distance_nearest_break > (stub_ratio * segment_length):
-
-                            # Create new geometry and cost and write to network
-                            line_geom = QgsGeometry.fromPolyline([seg_end_point, break_points[-1]])
-                            if network_cost_field:
-                                line_cost = line_geom.length() * cost_ratio
-                            else:
-                                line_cost = ''
-
-                            uf.insertTempFeatures(network, line_geom, line_cost)
-
-        # If topological network add all segments of the network layer straight away
-        else:
-
-            # Loop through features and add them to network
-            for segment in network_vector.getFeatures():
-
-                # Create new geometry and cost and write to network
-                line_geom = segment.geometryAndOwnership()
-                if network_cost_field:
-                    line_cost = line_geom.length() * cost_ratio
-                else:
-                    line_cost = ''
-                uf.insertTempFeatures(network, line_geom, line_cost)
-
-        return network
+        # Update layers
+        self.updateLayers()
