@@ -111,18 +111,11 @@ def createTempLayer(name, geometry, srid, attributes, types):
 
 def insertTempFeatures(layer, geometry, attributes):
     provider = layer.dataProvider()
-    geometry_type = provider.geometryType()
-    for i, geom in enumerate(geometry):
-        fet = QgsFeature()
-        if geometry_type in (1, 4):
-            fet.setGeometry(QgsGeometry.fromPoint(geom))
-        elif geometry_type in (2, 5):
-            fet.setGeometry(QgsGeometry.fromPolyline(geom))
-        elif geometry_type in (3, 6):
-            fet.setGeometry(QgsGeometry.fromPolygon(geom))
-        if attributes:
-            fet.setAttributes(attributes[i])
-        provider.addFeatures([fet])
+    fet = QgsFeature()
+    fet.setGeometry(geometry)
+    if attributes:
+        fet.setAttributes(attributes)
+    provider.addFeatures([fet])
     provider.updateExtents()
 
 

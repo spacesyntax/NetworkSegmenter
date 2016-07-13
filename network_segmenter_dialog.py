@@ -43,6 +43,10 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.networkText.setPlaceholderText("Save as temporary layer...")
         self.networkSaveButton.clicked.connect(self.setNetworkOutput)
 
+        # Setup the progress bar
+        self.analysisProgress.setMinimum(0)
+        self.analysisProgress.setMaximum(5)
+
     def setNetworkLayers(self, names):
         layers = ['-----']
         if names:
@@ -51,8 +55,10 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.networkCombo.clear()
         self.networkCombo.addItems(layers)
 
+
     def getNetwork(self):
         return self.networkCombo.currentText()
+
 
     def setUnlinkLayers(self, names):
         layers = ['-----']
@@ -62,16 +68,23 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.unlinkCombo.clear()
         self.unlinkCombo.addItems(layers)
 
+
     def getUnlinks(self):
         return self.unlinkCombo.currentText()
+
+
+    def getStubRatio(self):
+        return self.stubSpin.value()
 
     def setNetworkOutput(self):
         file_name = QtGui.QFileDialog.getSaveFileName(self, "Save output file ", "segment_network", '*.shp')
         if file_name:
             self.networkText.setText(file_name)
 
+
     def getNetworkOutput(self):
         return self.networkText.text()
+
 
     def closeDialog(self):
         self.networkCombo.clear()

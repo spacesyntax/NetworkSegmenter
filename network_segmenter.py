@@ -20,7 +20,7 @@
  *                                                                         *
  ***************************************************************************/
 """
-from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication
+from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant
 from PyQt4.QtGui import QAction, QIcon
 # Initialize Qt resources from file resources.py
 import resources
@@ -29,7 +29,7 @@ from network_segmenter_dialog import NetworkSegmenterDialog
 import os.path
 
 # Import tool classes
-import network_segmenter_tool
+import network_segmenter_tool as ng
 
 # Import utility tools
 import utility_functions as uf
@@ -74,6 +74,9 @@ class NetworkSegmenter:
         # TODO: We are going to let the user set this up in a future iteration
         self.toolbar = self.iface.addToolBar(u'NetworkSegmenter')
         self.toolbar.setObjectName(u'NetworkSegmenter')
+
+        # Setup GUI signals
+        self.dlg.analysisButton.clicked.connect(self.segmentNetwork)
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -185,9 +188,10 @@ class NetworkSegmenter:
         # remove the toolbar
         del self.toolbar
 
+
     def updateLayers(self):
         self.updateNetwork()
-        self.updateOrigins()
+        self.updateUnlinks()
 
 
     def updateNetwork(self):
@@ -195,8 +199,8 @@ class NetworkSegmenter:
         self.dlg.setNetworkLayers(network_layers)
 
 
-    def updateOrigins(self):
-        unlink_layers = uf.getLegendLayersNames(self.iface, geom=[0, ], provider='all')
+    def updateUnlinks(self):
+        unlink_layers = uf.getLegendLayersNames(self.iface, geom=[0, 2, ], provider='all')
         self.dlg.setUnlinkLayers(unlink_layers)
 
 
@@ -209,15 +213,18 @@ class NetworkSegmenter:
 
 
     def tempNetwork(self, epsg):
-        if self.dlg.networkCheck.isChecked():
-            output_network = uf.createTempLayer(
-                'segment_network',
-                'LINESTRING',
-                epsg,
-                ['id', ],
-                [QVariant.Int, ]
-            )
-            return output_network
+        output_network = uf.createTempLayer(
+            'segment_network',
+            'LINESTRING',
+            str(epsg),
+            ['id', ],
+            [QVariant.Int, ]
+        )
+        return output_network
+
+
+    def getStubRatio(self):
+        return self.dlg.getStubRatio()
 
 
     def getSettings(self):
@@ -231,19 +238,37 @@ class NetworkSegmenter:
         settings['unlink buffer'] = 5
         settings['epsg'] = self.getNetwork().crs().authid()
         settings['crs'] = self.getNetwork().crs()
-        settings['temp network'] = self.tempNetwork(str(settings['epsg']).replace("EPSG:", ''))
-        settings['out network'] = self.dlg.getNetworkOutput()
+        print filter(str.isdigit, str(settings['epsg']))
+        settings['temp network'] = self.tempNetwork(int(filter(str.isdigit, str(settings['epsg']))))
+        settings['output network'] = self.dlg.getNetworkOutput()
+
+        return settings
 
     def segmentNetwork(self):
         self.dlg.analysisProgress.reset()
         # Getting al the settings
         settings = self.getSettings()
         self.dlg.analysisProgress.setValue(1)
-
-
-
+        # Indexing the network
+        segment_index, segment_dict = ng.indexNetwork(settings['network'])
+        self.dlg.analysisProgress.setValue(2)
+        # Indexing the unlinks
+        if settings['unlinks']:
+            unlink_index = ng.indexUnlinks(settings['unlinks'],settings['unlink buffer'])
+        self.dlg.analysisProgress.setValue(3)
+        # Creating the output network
+        temp_network = self.tempNetwork(settings['epsg'])
+        self.dlg.analysisProgress.setValue(4)
+        # Performing the segmentation of the network
+        output_network = ng.segmentNetwork(
+            segment_dict,
+            segment_index,
+            unlink_index,
+            settings['stub ratio'],
+            temp_network)
+        self.dlg.analysisProgress.setValue(5)
         # Write and render the segment network
-        pass
+        ng.renderNetwork(output_network)
 
     def run(self):
         # show the dialog
