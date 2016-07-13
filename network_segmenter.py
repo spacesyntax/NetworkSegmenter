@@ -201,6 +201,7 @@ class NetworkSegmenter:
 
     def updateUnlinks(self):
         unlink_layers = uf.getLegendLayersNames(self.iface, geom=[0, 2, ], provider='all')
+        unlink_layers.append('-----')
         self.dlg.setUnlinkLayers(unlink_layers)
 
 
@@ -213,6 +214,7 @@ class NetworkSegmenter:
 
 
     def tempNetwork(self, epsg):
+        print epsg
         output_network = uf.createTempLayer(
             'segment_network',
             'LINESTRING',
@@ -236,10 +238,9 @@ class NetworkSegmenter:
         settings['unlinks'] = self.getUnlinks()
         settings['stub ratio'] = self.getStubRatio()
         settings['unlink buffer'] = 5
-        settings['epsg'] = self.getNetwork().crs().authid()
+        settings['epsg'] = self.getNetwork().crs().authid()[5:]
         settings['crs'] = self.getNetwork().crs()
-        print filter(str.isdigit, str(settings['epsg']))
-        settings['temp network'] = self.tempNetwork(int(filter(str.isdigit, str(settings['epsg']))))
+        settings['temp network'] = self.tempNetwork(settings['epsg'])
         settings['output network'] = self.dlg.getNetworkOutput()
 
         return settings
@@ -253,7 +254,7 @@ class NetworkSegmenter:
         segment_index, segment_dict = ng.indexNetwork(settings['network'])
         self.dlg.analysisProgress.setValue(2)
         # Indexing the unlinks
-        if settings['unlinks']:
+        if settings['unlinks'] and settings['unlinks'] != '-----':
             unlink_index = ng.indexUnlinks(settings['unlinks'],settings['unlink buffer'])
         self.dlg.analysisProgress.setValue(3)
         # Creating the output network

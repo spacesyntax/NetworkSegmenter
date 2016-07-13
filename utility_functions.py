@@ -89,7 +89,7 @@ def giveWarningMessage(message):
 
 def createTempLayer(name, geometry, srid, attributes, types):
     # Geometry can be 'POINT', 'LINESTRING' or 'POLYGON' or the 'MULTI' version of the previous
-    vlayer = QgsVectorLayer('%s?crs=EPSG:%s' % (geometry, srid), name, "memory")
+    vlayer = QgsVectorLayer('%s?crs=epsg:%s' % (geometry, srid), name, "memory")
     provider = vlayer.dataProvider()
 
     # Create the required fields

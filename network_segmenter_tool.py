@@ -68,7 +68,7 @@ def segmentNetwork(segment_dict, segment_index, unlink_index, stub_ratio, output
 
         # Sort break_points according to distance to start point
         break_points.sort(key=lambda x: QgsDistanceArea().measureLine(seg_start_point, x))
-
+        print break_points
         # Create segments using break points
         for i in range(0, len(break_points) - 1):
             # Set end points
