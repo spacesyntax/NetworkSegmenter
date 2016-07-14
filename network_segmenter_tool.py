@@ -63,12 +63,22 @@ def segmentNetwork(segment_dict, segment_index, unlink_index, stub_ratio, output
                     point_buffer_geom = point_geom.buffer(1, 1).boundingBox()
 
                     # Add break point if cross point is an unlink
-                    if not unlink_index.intersects(point_buffer_geom):
+                    if unlink_index:
+                        if not unlink_index.intersects(point_buffer_geom):
+                            break_points.append(point_geom.asPoint())
+                    else:
                         break_points.append(point_geom.asPoint())
+
+        # Getting a set of unique points
+        break_points = list(set(break_points))
+
+        # If segment is a dead end write it straight away
+        if len(break_points) == 1:
+            insertTempFeatures(output_network, segment_geom, [segment_id, ])
 
         # Sort break_points according to distance to start point
         break_points.sort(key=lambda x: QgsDistanceArea().measureLine(seg_start_point, x))
-        print break_points
+
         # Create segments using break points
         for i in range(0, len(break_points) - 1):
             # Set end points
@@ -79,34 +89,34 @@ def segmentNetwork(segment_dict, segment_index, unlink_index, stub_ratio, output
             line_geom = QgsGeometry.fromPolyline([start_geom, end_geom])
             insertTempFeatures(output_network, line_geom, [segment_id, ])
 
-            # Check if first segment is a potential stub
-            for point in break_points:
+        # Check if first segment is a potential stub
+        for point in break_points:
 
-                if point != seg_start_point:
+            if point != seg_start_point:
 
-                    # Calculate distance between point and start point
-                    distance_nearest_break = QgsDistanceArea().measureLine(seg_start_point, break_points[0])
+                # Calculate distance between point and start point
+                distance_nearest_break = QgsDistanceArea().measureLine(seg_start_point, break_points[0])
 
-                    # Only add first segment if it is a dead end
-                    if distance_nearest_break > (stub_ratio * segment_length):
+                # Only add first segment if it is a dead end
+                if distance_nearest_break > (stub_ratio * segment_length):
 
-                        # Create new geometry and cost and write to network
-                        line_geom = QgsGeometry.fromPolyline([seg_start_point, break_points[0]])
-                        insertTempFeatures(output_network, line_geom, [segment_id, ])
+                    # Create new geometry and cost and write to network
+                    line_geom = QgsGeometry.fromPolyline([seg_start_point, break_points[0]])
+                    insertTempFeatures(output_network, line_geom, [segment_id, ])
 
-                # Check if last segment is a potential stub
-                elif point != seg_end_point:
+            # Check if last segment is a potential stub
+            elif point != seg_end_point:
 
-                    # Calculate distance between point and end point
-                    distance_nearest_break = QgsDistanceArea().measureLine(seg_end_point, break_points[-1])
+                # Calculate distance between point and end point
+                distance_nearest_break = QgsDistanceArea().measureLine(seg_end_point, break_points[-1])
 
-                    # Only add last segment if it is a dead end
-                    if distance_nearest_break > (stub_ratio * segment_length):
+                # Only add last segment if it is a dead end
+                if distance_nearest_break > (stub_ratio * segment_length):
 
-                        # Create new geometry and cost and write to network
-                        line_geom = QgsGeometry.fromPolyline([seg_end_point, break_points[-1]])
+                    # Create new geometry and cost and write to network
+                    line_geom = QgsGeometry.fromPolyline([seg_end_point, break_points[-1]])
 
-                        insertTempFeatures(output_network, line_geom, [segment_id, ])
+                    insertTempFeatures(output_network, line_geom, [segment_id, ])
 
     return output_network
 

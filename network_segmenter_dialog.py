@@ -73,8 +73,13 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         return self.unlinkCombo.currentText()
 
 
+    def getUnlinkBuffer(self):
+        return self.bufferSpin.value()
+
+
     def getStubRatio(self):
         return self.stubSpin.value()
+
 
     def setNetworkOutput(self):
         file_name = QtGui.QFileDialog.getSaveFileName(self, "Save output file ", "segment_network", '*.shp')

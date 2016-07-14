@@ -24,6 +24,11 @@ from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVa
 from PyQt4.QtGui import QAction, QIcon
 # Initialize Qt resources from file resources.py
 import resources
+
+# Import QGIS classes
+from qgis.core import *
+from qgis.utils import *
+
 # Import the code for the dialog
 from network_segmenter_dialog import NetworkSegmenterDialog
 import os.path
@@ -214,7 +219,6 @@ class NetworkSegmenter:
 
 
     def tempNetwork(self, epsg):
-        print epsg
         output_network = uf.createTempLayer(
             'segment_network',
             'LINESTRING',
@@ -228,48 +232,68 @@ class NetworkSegmenter:
     def getStubRatio(self):
         return self.dlg.getStubRatio()
 
+    def getUnlinkBuffer(self):
+        return self.dlg.getUnlinkBuffer()
+
+    def giveWarningMessage(self, message):
+        # Gives warning according to message
+        self.iface.messageBar().pushMessage(
+            "Catchment Analyser: ",
+            "%s" % (message),
+            level=QgsMessageBar.WARNING,
+            duration=5)
 
     def getSettings(self):
         # Creating a combined settings dictionary
         settings = {}
 
-        # Get settings from the dialog
-        settings['network'] = self.getNetwork()
-        settings['unlinks'] = self.getUnlinks()
-        settings['stub ratio'] = self.getStubRatio()
-        settings['unlink buffer'] = 5
-        settings['epsg'] = self.getNetwork().crs().authid()[5:]
-        settings['crs'] = self.getNetwork().crs()
-        settings['temp network'] = self.tempNetwork(settings['epsg'])
-        settings['output network'] = self.dlg.getNetworkOutput()
+        # Give warnings
+        if not self.getNetwork():
+            self.giveWarningMessage("Catchment Analyser: No network selected!")
+        else:
+            # Get settings from the dialog
+            settings['network'] = self.getNetwork()
+            settings['unlinks'] = self.getUnlinks()
+            settings['stub ratio'] = self.getStubRatio()
+            settings['unlink buffer'] = self.getUnlinkBuffer()
+            settings['epsg'] = self.getNetwork().crs().authid()[5:]
+            settings['crs'] = self.getNetwork().crs()
+            settings['temp network'] = self.tempNetwork(settings['epsg'])
+            settings['output network'] = self.dlg.getNetworkOutput()
 
-        return settings
+            return settings
 
     def segmentNetwork(self):
         self.dlg.analysisProgress.reset()
-        # Getting al the settings
-        settings = self.getSettings()
-        self.dlg.analysisProgress.setValue(1)
-        # Indexing the network
-        segment_index, segment_dict = ng.indexNetwork(settings['network'])
-        self.dlg.analysisProgress.setValue(2)
-        # Indexing the unlinks
-        if settings['unlinks'] and settings['unlinks'] != '-----':
-            unlink_index = ng.indexUnlinks(settings['unlinks'],settings['unlink buffer'])
-        self.dlg.analysisProgress.setValue(3)
-        # Creating the output network
-        temp_network = self.tempNetwork(settings['epsg'])
-        self.dlg.analysisProgress.setValue(4)
-        # Performing the segmentation of the network
-        output_network = ng.segmentNetwork(
-            segment_dict,
-            segment_index,
-            unlink_index,
-            settings['stub ratio'],
-            temp_network)
-        self.dlg.analysisProgress.setValue(5)
-        # Write and render the segment network
-        ng.renderNetwork(output_network)
+        if self.getSettings():
+            # Getting al the settings
+            settings = self.getSettings()
+            self.dlg.analysisProgress.setValue(1)
+            # Indexing the network
+            segment_index, segment_dict = ng.indexNetwork(settings['network'])
+            self.dlg.analysisProgress.setValue(2)
+            # Indexing the unlinks
+            if settings['unlinks'] and settings['unlinks'] != '-----':
+                unlink_index = ng.indexUnlinks(settings['unlinks'],settings['unlink buffer'])
+            else:
+                unlink_index = ''
+            self.dlg.analysisProgress.setValue(3)
+            # Creating the output network
+            temp_network = self.tempNetwork(settings['epsg'])
+            self.dlg.analysisProgress.setValue(4)
+            # Performing the segmentation of the network
+            output_network = ng.segmentNetwork(
+                segment_dict,
+                segment_index,
+                unlink_index,
+                settings['stub ratio'],
+                temp_network)
+            self.dlg.analysisProgress.setValue(5)
+            # Write and render the segment network
+            ng.renderNetwork(output_network)
+
+            # Closing the dialog
+            self.dlg.closeDialog()
 
     def run(self):
         # show the dialog
