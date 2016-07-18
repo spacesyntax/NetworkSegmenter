@@ -94,6 +94,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
     def closeDialog(self):
         self.networkCombo.clear()
         self.unlinkCombo.clear()
+        self.stubSpin.setValue(5)
         self.stubSpin.setValue(0.25)
         self.networkText.clear()
         self.analysisProgress.reset()
