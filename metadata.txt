@@ -14,7 +14,7 @@ version=0.1
 author=Laurens Versluis
 email=l.versluis@spacesyntax.com
 
-about=A tool to breaking a network into segments while removing stubbs and reading unlinks.
+about=A tool to breaking a network into segments while removing stubs and reading unlinks.
 
 tracker=https://github.com/OpenDigitalWorks/NetworkSegmenter
 repository=https://github.com/OpenDigitalWorks/NetworkSegmenter

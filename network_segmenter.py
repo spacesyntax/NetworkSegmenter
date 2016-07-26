@@ -270,7 +270,7 @@ class NetworkSegmenter:
             settings = self.getSettings()
             self.dlg.analysisProgress.setValue(1)
             # Indexing the network
-            segment_index, segment_dict = ng.indexNetwork(settings['network'])
+            segment_index, segment_dict = ng.prepareNetwork(settings['network'])
             self.dlg.analysisProgress.setValue(2)
             # Indexing the unlinks
             if settings['unlinks'] and settings['unlinks'] != '-----':

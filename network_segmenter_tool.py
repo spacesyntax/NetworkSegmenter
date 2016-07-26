@@ -1,11 +1,43 @@
 from utility_functions import *
+from qgis.core import *
+from processing.algs.qgis.Explode import *
 
-def indexNetwork(network_vector):
+def explodePolyline(polyline):
+    segments = []
+    for i in range(len(polyline) - 1):
+        ptA = polyline[i]
+        ptB = polyline[i + 1]
+        segment = QgsGeometry.fromPolyline([ptA, ptB])
+        segments.append(segment)
+    return segments
+
+
+def prepareNetwork(network_vector):
     segment_index = QgsSpatialIndex()
     segment_dict = {}
-    for segment in network_vector.getFeatures():
-        segment_index.insertFeature(segment)
-        segment_dict[segment.id()] = {'geom' : segment.geometryAndOwnership()}
+    # Loop through network features
+    for polyline in network_vector.getFeatures():
+        geom = polyline.geometry()
+        # Explode features
+        if geom.isMultipart():
+            multi = geom.asMultiPolyline()
+            for polyline in multi:
+                segments = explodePolyline(polyline)
+        else:
+            segments = explodePolyline(geom.asPolyline())
+        # Write segment to index and dictionary
+        if len(segments) > 1:
+            for geom in segments:
+                f = QgsFeature()
+                f.setGeometry(geom)
+                segment_index.insertFeature(f)
+                segment_dict[f.id()] = {'geom': geom}
+        else:
+            geom = segments[0]
+            f = QgsFeature()
+            f.setGeometry(geom)
+            segment_index.insertFeature(f)
+            segment_dict[f.id()] = {'geom': geom}
 
     return segment_index, segment_dict
 
@@ -29,6 +61,7 @@ def indexUnlinks(unlink_vector, unlink_buffer):
         unlink_index.insertFeature(unlink_area)
 
     return unlink_index
+
 
 def segmentNetwork(segment_dict, segment_index, unlink_index, stub_ratio, output_network):
 
@@ -119,6 +152,7 @@ def segmentNetwork(segment_dict, segment_index, unlink_index, stub_ratio, output
                     insertTempFeatures(output_network, line_geom, [segment_id, ])
 
     return output_network
+
 
 def renderNetwork(output_network):
     # add network to the canvas
