@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 /***************************************************************************
- NetworkSegmenterDialog
-                                 A QGIS plugin
- Breaking a network into segments while removing stubbs and reading unlinks
-                             -------------------
+ NetworkSegmenter
+                                 Network Segmenter
+ Breaking a network into segments and removing stubs while reading unlinks
+                              -------------------
         begin                : 2016-07-06
-        git sha              : $Format:%H$
-        copyright            : (C) 2016 by Laurens Versluis
+        author               : Laurens Versluis
+        copyright            : (C) 2016 by Space Syntax Limited
         email                : l.versluis@spacesyntax.com
  ***************************************************************************/
 
@@ -40,12 +40,14 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
 
+        # Setup GIU signals
         self.networkText.setPlaceholderText("Save as temporary layer...")
         self.networkSaveButton.clicked.connect(self.setNetworkOutput)
+        self.cancelButton.clicked.connect(self.closeDialog)
 
         # Setup the progress bar
         self.analysisProgress.setMinimum(0)
-        self.analysisProgress.setMaximum(5)
+        self.analysisProgress.setMaximum(100)
 
     def setNetworkLayers(self, names):
         layers = ['-----']
@@ -78,7 +80,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
 
     def getStubRatio(self):
-        return self.stubSpin.value()
+        return self.stubSpin.value()/100
 
 
     def setNetworkOutput(self):
@@ -95,7 +97,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.networkCombo.clear()
         self.unlinkCombo.clear()
         self.stubSpin.setValue(5)
-        self.stubSpin.setValue(0.25)
+        self.stubSpin.setValue(40)
         self.networkText.clear()
         self.analysisProgress.reset()
         self.close()

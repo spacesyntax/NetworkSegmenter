@@ -2,12 +2,12 @@
 """
 /***************************************************************************
  NetworkSegmenter
-                                 A QGIS plugin
- Breaking a network into segments while removing stubbs and reading unlinks
+                                 Network Segmenter
+ Breaking a network into segments and removing stubs while reading unlinks
                               -------------------
         begin                : 2016-07-06
-        git sha              : $Format:%H$
-        copyright            : (C) 2016 by Laurens Versluis
+        author               : Laurens Versluis
+        copyright            : (C) 2016 by Space Syntax Limited
         email                : l.versluis@spacesyntax.com
  ***************************************************************************/
 
@@ -20,7 +20,7 @@
  *                                                                         *
  ***************************************************************************/
 """
-from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant
+from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, QThread
 from PyQt4.QtGui import QAction, QIcon
 # Initialize Qt resources from file resources.py
 import resources
@@ -34,7 +34,7 @@ from network_segmenter_dialog import NetworkSegmenterDialog
 import os.path
 
 # Import tool classes
-import network_segmenter_tool as ng
+import network_segmenter_tool
 
 # Import utility tools
 import utility_functions as uf
@@ -75,13 +75,14 @@ class NetworkSegmenter:
 
         # Declare instance attributes
         self.actions = []
-        self.menu = self.tr(u'&Network Segmenter')
+        self.menu = self.tr(u'&Space Syntax Toolkit')
         # TODO: We are going to let the user set this up in a future iteration
-        self.toolbar = self.iface.addToolBar(u'NetworkSegmenter')
-        self.toolbar.setObjectName(u'NetworkSegmenter')
+        self.toolbar = self.iface.pluginToolBar()
+
 
         # Setup GUI signals
-        self.dlg.analysisButton.clicked.connect(self.segmentNetwork)
+        self.dlg.analysisButton.clicked.connect(self.runAnalysis)
+
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -164,7 +165,7 @@ class NetworkSegmenter:
             self.toolbar.addAction(action)
 
         if add_to_menu:
-            self.iface.addPluginToMenu(
+            self.iface.addPluginToVectorMenu(
                 self.menu,
                 action)
 
@@ -186,12 +187,12 @@ class NetworkSegmenter:
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
-            self.iface.removePluginMenu(
-                self.tr(u'&Network Segmenter'),
+            self.iface.removePluginVectorMenu(
+                self.menu,
                 action)
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
-        del self.toolbar
+        # del self.toolbar
 
 
     def updateLayers(self):
@@ -263,37 +264,61 @@ class NetworkSegmenter:
 
             return settings
 
-    def segmentNetwork(self):
+    def runAnalysis(self):
         self.dlg.analysisProgress.reset()
-        if self.getSettings():
-            # Getting al the settings
-            settings = self.getSettings()
-            self.dlg.analysisProgress.setValue(1)
-            # Indexing the network
-            segment_index, segment_dict = ng.prepareNetwork(settings['network'])
-            self.dlg.analysisProgress.setValue(2)
-            # Indexing the unlinks
-            if settings['unlinks'] and settings['unlinks'] != '-----':
-                unlink_index = ng.indexUnlinks(settings['unlinks'],settings['unlink buffer'])
-            else:
-                unlink_index = ''
-            self.dlg.analysisProgress.setValue(3)
-            # Creating the output network
-            temp_network = self.tempNetwork(settings['epsg'])
-            self.dlg.analysisProgress.setValue(4)
-            # Performing the segmentation of the network
-            output_network = ng.segmentNetwork(
-                segment_dict,
-                segment_index,
-                unlink_index,
-                settings['stub ratio'],
-                temp_network)
-            self.dlg.analysisProgress.setValue(5)
-            # Write and render the segment network
-            ng.renderNetwork(output_network)
+        # Create an analysis instance
+        settings = self.getSettings()
+        analysis = network_segmenter_tool.networkSegmenter(self.iface, settings)
+        # Create new thread and move the analysis class to it
+        analysis_thread = QThread()
+        analysis.moveToThread(analysis_thread)
+        # Setup signals
+        self.dlg.cancelButton.clicked.connect(self.killAnalysis)
+        analysis.finished.connect(self.finishAnalysis)
+        analysis.error.connect(self.analysisError)
+        analysis.warning.connect(self.giveWarningMessage)
+        analysis.progress.connect(self.dlg.analysisProgress.setValue)
+        # Start analysis
+        analysis_thread.started.connect(analysis.analysis)
+        analysis_thread.start()
+        self.analysis_thread = analysis_thread
+        self.analysis = analysis
 
-            # Closing the dialog
-            self.dlg.closeDialog()
+    def finishAnalysis(self, output):
+        # Clean up thread and analysis
+        self.analysis_thread.quit()
+        self.analysis_thread.wait()
+        self.analysis_thread.deleteLater()
+        self.analysis.deleteLater()
+        # Render output
+        if output:
+            self.renderNetwork(output)
+        else:
+            self.giveWarningMessage('Something went wrong')
+        # Closing the dialog
+        self.dlg.closeDialog()
+
+    def analysisError(self, e, exception_string):
+        QgsMessageLog.logMessage(
+            'Catchment Analyser raised an exception: %s' % exception_string,
+            level=QgsMessageLog.CRITICAL)
+        # Closing the dialog
+        self.dlg.closeDialog()
+
+    def killAnalysis(self):
+        # Clean up thread and analysis
+        self.analysis.kill()
+        self.analysis_thread.quit()
+        self.analysis_thread.wait()
+        self.analysis_thread.deleteLater()
+        self.analysis.deleteLater()
+        # Closing the dialog
+        self.dlg.closeDialog()
+
+    def renderNetwork(self, output_network):
+        # Add network to the canvas
+        QgsMapLayerRegistry.instance().addMapLayer(output_network)
+
 
     def run(self):
         # show the dialog

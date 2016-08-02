@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 /***************************************************************************
- CatchmentAnalyser
-                                 A QGIS plugin
- Network based catchment analysis
+ NetworkSegmenter
+                                 Network Segmenter
+ Breaking a network into segments and removing stubs while reading unlinks
                               -------------------
-        begin                : 2016-05-19
-        git sha              : $Format:%H$
-        copyright            : (C) 2016 by Laurens Versluis
+        begin                : 2016-07-06
+        author               : Laurens Versluis
+        copyright            : (C) 2016 by Space Syntax Limited
         email                : l.versluis@spacesyntax.com
  ***************************************************************************/
 

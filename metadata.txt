@@ -9,30 +9,30 @@
 [general]
 name=Network Segmenter
 qgisMinimumVersion=2.0
-description=Breaking a network into segments while removing stubbs and reading unlinks
-version=0.1
+description=Breaking a network into segments while removing stubs and reading unlinks
+version=0.0.1
 author=Laurens Versluis
 email=l.versluis@spacesyntax.com
 
-about=A tool to breaking a network into segments while removing stubs and reading unlinks.
+about=  This tool takes a line-based network. It explodes polylines in the network and breaks them based on their intersection with other lines. Lines that cross other lines can be an unwanted stub. These stubs are removed based on a specified ratio. Optionally, a point or polygon based unlink layer can be specified which highlight crossing lines which should not break. The search area around the unlink features is specified by the unlink buffer variable.This plugin was developed by Space Syntax Open Digital Works © 2016 Space Syntax Ltd
 
-tracker=https://github.com/OpenDigitalWorks/NetworkSegmenter
+tracker=https://github.com/OpenDigitalWorks/NetworkSegmenter/issues
 repository=https://github.com/OpenDigitalWorks/NetworkSegmenter
 # End of mandatory metadata
 
 # Recommended items:
 
 # Uncomment the following line and add your changelog:
-# changelog=
+changelog=  0.0.1 Initial build
 
 # Tags are comma separated with spaces allowed
-tags=network, segment, stub, unlink
+tags=network, segment, stub, unlink, space syntax
 
-homepage=https://github.com/OpenDigitalWorks/NetworkSegmenter
-category=Plugins
+homepage=https://github.com/OpenDigitalWorks/
+category=Vector
 icon=icon.png
 # experimental flag
-experimental=True
+experimental=False
 
 # deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False
