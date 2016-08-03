@@ -17,16 +17,16 @@ Choose the point-based vector layer containing the unlink points or polygons tha
 **Unlink buffer**
 Define the search distance around the unlink features that capture the unconnected lines.
 
-**Stub ratio**:  
+**Stub ratio**
 This percentage defines the minimum proportion of the line length that signifies an unwanted stub.
 
-**Output network**: 
+**Output network**
 This tool provides a segmented network as temporary layer or as a shapefile if its path is set. 
 
-**Run**: 
+**Run**
 Pressing the run button will activate the analysis for all the current settings.
 
-**Cancel**: 
+**Cancel**
 Pressing cancel will close and terminate the Network Segmenter.
 
 ## Software Requirements

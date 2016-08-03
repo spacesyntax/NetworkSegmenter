@@ -239,7 +239,7 @@ class NetworkSegmenter:
     def giveWarningMessage(self, message):
         # Gives warning according to message
         self.iface.messageBar().pushMessage(
-            "Catchment Analyser: ",
+            "Network Segmenter: ",
             "%s" % (message),
             level=QgsMessageBar.WARNING,
             duration=5)
@@ -250,7 +250,7 @@ class NetworkSegmenter:
 
         # Give warnings
         if not self.getNetwork():
-            self.giveWarningMessage("Catchment Analyser: No network selected!")
+            self.giveWarningMessage("No network selected!")
         else:
             # Get settings from the dialog
             settings['network'] = self.getNetwork()
