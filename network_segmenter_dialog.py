@@ -43,7 +43,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         # Setup GIU signals
         self.networkText.setPlaceholderText("Save as temporary layer...")
         self.networkSaveButton.clicked.connect(self.setNetworkOutput)
-        self.cancelButton.clicked.connect(self.closeDialog)
+        self.bufferSpin.setEnabled(False)
 
         # Setup the progress bar
         self.analysisProgress.setMinimum(0)
@@ -67,6 +67,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         if names:
             layers = []
             layers.extend(names)
+            self.bufferSpin.setEnabled(True)
         self.unlinkCombo.clear()
         self.unlinkCombo.addItems(layers)
 

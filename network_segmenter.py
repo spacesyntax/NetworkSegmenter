@@ -72,7 +72,7 @@ class NetworkSegmenter:
 
         # Create the dialog (after translation) and keep reference
         self.dlg = NetworkSegmenterDialog()
-
+        self.analysis = None
         # Declare instance attributes
         self.actions = []
         self.menu = self.tr(u'&Space Syntax Toolkit')
@@ -82,7 +82,7 @@ class NetworkSegmenter:
 
         # Setup GUI signals
         self.dlg.analysisButton.clicked.connect(self.runAnalysis)
-
+        self.dlg.cancelButton.clicked.connect(self.killAnalysis)
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -206,8 +206,8 @@ class NetworkSegmenter:
 
 
     def updateUnlinks(self):
-        unlink_layers = uf.getLegendLayersNames(self.iface, geom=[0, 2, ], provider='all')
-        unlink_layers.append('-----')
+        unlink_layers = []
+        unlink_layers.extend(uf.getLegendLayersNames(self.iface, geom=[0, 2, ], provider='all'))
         self.dlg.setUnlinkLayers(unlink_layers)
 
 
@@ -273,7 +273,6 @@ class NetworkSegmenter:
         analysis_thread = QThread()
         analysis.moveToThread(analysis_thread)
         # Setup signals
-        self.dlg.cancelButton.clicked.connect(self.killAnalysis)
         analysis.finished.connect(self.finishAnalysis)
         analysis.error.connect(self.analysisError)
         analysis.warning.connect(self.giveWarningMessage)
@@ -306,14 +305,24 @@ class NetworkSegmenter:
         self.dlg.closeDialog()
 
     def killAnalysis(self):
-        # Clean up thread and analysis
-        self.analysis.kill()
-        self.analysis_thread.quit()
-        self.analysis_thread.wait()
-        self.analysis_thread.deleteLater()
-        self.analysis.deleteLater()
-        # Closing the dialog
-        self.dlg.closeDialog()
+        # Check if the analysis is running
+        if self.analysis:
+            # Disconnect signals
+            self.analysis.finished.disconnect(self.finishAnalysis)
+            self.analysis.error.disconnect(self.analysisError)
+            self.analysis.warning.disconnect(self.giveWarningMessage)
+            self.analysis.progress.disconnect(self.dlg.analysisProgress.setValue)
+            # Clean up thread and analysis
+            self.analysis.kill()
+            self.analysis.deleteLater()
+            self.analysis_thread.quit()
+            self.analysis_thread.wait()
+            self.analysis_thread.deleteLater()
+            self.analysis = None
+            # Closing the dialog
+            self.dlg.closeDialog()
+        else:
+            self.dlg.closeDialog()
 
     def renderNetwork(self, output_network):
         # Add network to the canvas

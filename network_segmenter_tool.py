@@ -106,6 +106,7 @@ class networkSegmenter(QObject):
         break_points = []
         intersecting_segments_ids = segment_index.intersects(geom.boundingBox())
         for id in intersecting_segments_ids:
+            if self.killed == True: return
             if id != index: # Skip if segment is itself
                 int_seg_geom = segment_dict[id]['geom']
                 # Identify the construction point of the new segment
@@ -151,22 +152,23 @@ class networkSegmenter(QObject):
                     line_geom = QgsGeometry.fromPolyline([start_geom, end_geom])
                     uf.insertTempFeatures(output_network, line_geom, [index, ])
                 # Check if first segment is a potential stub
-                for point in break_points:
-                    if point != seg_start_point:
-                        # Calculate distance between point and start point
-                        distance_nearest_break = QgsDistanceArea().measureLine(seg_start_point, break_points[0])
-                        # Only add first segment if it is a dead end
-                        if distance_nearest_break > max_stub:
-                            line_geom = QgsGeometry.fromPolyline([seg_start_point, break_points[0]])
-                            uf.insertTempFeatures(output_network, line_geom, [id, ])
-                    # Check if last segment is a potential stub
-                    elif point != seg_end_point:
-                        # Calculate distance between point and end point
-                        distance_nearest_break = QgsDistanceArea().measureLine(seg_end_point, break_points[-1])
-                        # Only add last segment if it is a dead end
-                        if distance_nearest_break > max_stub:
-                            line_geom = QgsGeometry.fromPolyline([seg_end_point, break_points[-1]])
-                            uf.insertTempFeatures(output_network, line_geom, [id, ])
+                # for point in break_points:
+                if self.killed == True: return
+                if break_points[0] != seg_start_point:
+                    # Calculate distance between point and start point
+                    distance_nearest_break = abs(QgsDistanceArea().measureLine(seg_start_point, break_points[0]))
+                    # Only add first segment if it is a dead end
+                    if distance_nearest_break > max_stub:
+                        line_geom = QgsGeometry.fromPolyline([seg_start_point, break_points[0]])
+                        uf.insertTempFeatures(output_network, line_geom, [id, ])
+                # Check if last segment is a potential stub
+                elif break_points[-1] != seg_end_point:
+                    # Calculate distance between point and end point
+                    distance_nearest_break = abs(QgsDistanceArea().measureLine(seg_end_point, break_points[-1]))
+                    # Only add last segment if it is a dead end
+                    if distance_nearest_break > max_stub:
+                        line_geom = QgsGeometry.fromPolyline([seg_end_point, break_points[-1]])
+                        uf.insertTempFeatures(output_network, line_geom, [id, ])
             id += 1
 
         return output_network
