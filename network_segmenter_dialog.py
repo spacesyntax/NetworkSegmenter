@@ -63,13 +63,13 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
 
     def setUnlinkLayers(self, names):
-        layers = ['-----']
+        #layers = ['-----']
         if names:
-            layers = []
+            layers = ['-----']
             layers.extend(names)
             self.bufferSpin.setEnabled(True)
-        self.unlinkCombo.clear()
-        self.unlinkCombo.addItems(layers)
+            self.unlinkCombo.clear()
+            self.unlinkCombo.addItems(layers)
 
 
     def getUnlinks(self):
