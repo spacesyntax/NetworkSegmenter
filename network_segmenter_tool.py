@@ -142,7 +142,7 @@ class networkSegmenter(QObject):
             # If segment is a dead end write it straight away
             if len(break_points) == 1:
                 uf.insertTempFeatures(output_network, segment_geom, [id, ])
-            else:
+            elif len(break_points) > 1:
                 # Sort break_points according to distance to start point
                 break_points.sort(key=lambda x: QgsDistanceArea().measureLine(seg_start_point, x))
                 # Create segments using break points
