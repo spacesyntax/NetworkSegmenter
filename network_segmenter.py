@@ -35,9 +35,9 @@ import os.path
 
 # Import tool classes
 import network_segmenter_tool
-
 # Import utility tools
 import utility_functions as uf
+
 
 class NetworkSegmenter:
     """QGIS Plugin Implementation."""
@@ -194,75 +194,18 @@ class NetworkSegmenter:
         # remove the toolbar
         # del self.toolbar
 
-
     def updateLayers(self):
         self.updateNetwork()
         self.updateUnlinks()
-
 
     def updateNetwork(self):
         network_layers = uf.getLegendLayersNames(self.iface, geom=[1, ], provider='all')
         self.dlg.setNetworkLayers(network_layers)
 
-
     def updateUnlinks(self):
         unlink_layers = []
         unlink_layers.extend(uf.getLegendLayersNames(self.iface, geom=[0, 2, ], provider='all'))
         self.dlg.setUnlinkLayers(unlink_layers)
-
-
-    def getNetwork(self):
-        return uf.getLegendLayerByName(self.iface, self.dlg.getNetwork())
-
-
-    def getUnlinks(self):
-        return uf.getLegendLayerByName(self.iface, self.dlg.getUnlinks())
-
-
-    def tempNetwork(self, epsg):
-        output_network = uf.createTempLayer(
-            'segment_network',
-            'LINESTRING',
-            str(epsg),
-            ['id', ],
-            [QVariant.Int, ]
-        )
-        return output_network
-
-
-    def getStubRatio(self):
-        return self.dlg.getStubRatio()
-
-    def getUnlinkBuffer(self):
-        return self.dlg.getUnlinkBuffer()
-
-    def giveWarningMessage(self, message):
-        # Gives warning according to message
-        self.iface.messageBar().pushMessage(
-            "Network Segmenter: ",
-            "%s" % (message),
-            level=QgsMessageBar.WARNING,
-            duration=5)
-
-    def getSettings(self):
-        # Creating a combined settings dictionary
-        settings = {}
-
-        # Give warnings
-        if not self.getNetwork():
-            self.giveWarningMessage("No network selected!")
-        else:
-            # Get settings from the dialog
-            settings['network'] = self.getNetwork()
-            settings['unlinks'] = self.getUnlinks()
-            settings['stub ratio'] = self.getStubRatio()
-            settings['unlink buffer'] = self.getUnlinkBuffer()
-            settings['epsg'] = self.getNetwork().crs().authid()[5:]
-            settings['crs'] = self.getNetwork().crs()
-            settings['temp network'] = self.tempNetwork(settings['epsg'])
-            settings['output network'] = self.dlg.getNetworkOutput()
-
-            return settings
 
     def runAnalysis(self):
         self.dlg.analysisProgress.reset()
@@ -327,7 +270,6 @@ class NetworkSegmenter:
     def renderNetwork(self, output_network):
         # Add network to the canvas
         QgsMapLayerRegistry.instance().addMapLayer(output_network)
-
 
     def run(self):
         # show the dialog

@@ -42,46 +42,16 @@ class networkSegmenter(QObject):
         self.settings = settings
         self.killed = False
 
-    def explodePolyline(self, polyline):
-        segments = []
-        for i in range(len(polyline) - 1):
-            ptA = polyline[i]
-            ptB = polyline[i + 1]
-            segment = QgsGeometry.fromPolyline([ptA, ptB])
-            segments.append(segment)
-        return segments
-
-
-    def extractSinglePolyline(self, geom):
-        segments = []
-        if geom.isMultipart():
-            multi = geom.asMultiPolyline()
-            for polyline in multi:
-                segments.extend(self.explodePolyline(polyline))
-        else:
-            segments.extend(self.explodePolyline(geom.asPolyline()))
-        return segments
-
-
     def prepareNetwork(self, network_vector):
-        segment_index = QgsSpatialIndex()
+        spIndex = QgsSpatialIndex()
         segment_dict = {}
         # Loop through network features
-        index = 1
-        for polyline in network_vector.getFeatures():
-            geom = polyline.geometry()
-            segments = self.extractSinglePolyline(geom)
-            # Write segments to index and dictionary
-            for segment in segments:
-                f = QgsFeature()
-                f.setFeatureId(index)
-                f.setGeometry(segment)
-                segment_index.insertFeature(f)
-                segment_dict[index] = {'geom': segment}
-                index += 1
+        for f in network_vector.getFeatures():
+            spIndex.insertFeature(f)
+
+
 
         return segment_index, segment_dict
-
 
     def indexUnlinks(self, unlink_vector, unlink_buffer):
         unlink_index = QgsSpatialIndex()
@@ -126,6 +96,13 @@ class networkSegmenter(QObject):
 
 
     def segmentNetwork(self, segment_dict, segment_index, unlink_index, stub_ratio, output_network):
+        # 1. create spatial index
+        spIndex = createSpIndex()
+
+
+
+
+
 
         # Break each segment based on intersecting lines and unlinks
         tot = len(segment_dict)

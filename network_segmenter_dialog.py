@@ -25,6 +25,9 @@ import os
 
 from PyQt4 import QtGui, uic
 
+# Import utility tools
+import utility_functions as uf
+
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'network_segmenter_dialog_base.ui'))
 
@@ -57,10 +60,8 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.networkCombo.clear()
         self.networkCombo.addItems(layers)
 
-
     def getNetwork(self):
         return self.networkCombo.currentText()
-
 
     def setUnlinkLayers(self, names):
         #layers = ['-----']
@@ -71,28 +72,22 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
             self.unlinkCombo.clear()
             self.unlinkCombo.addItems(layers)
 
-
     def getUnlinks(self):
         return self.unlinkCombo.currentText()
-
 
     def getUnlinkBuffer(self):
         return self.bufferSpin.value()
 
-
     def getStubRatio(self):
         return self.stubSpin.value()/100
-
 
     def setNetworkOutput(self):
         file_name = QtGui.QFileDialog.getSaveFileName(self, "Save output file ", "segment_network", '*.shp')
         if file_name:
             self.networkText.setText(file_name)
 
-
     def getNetworkOutput(self):
         return self.networkText.text()
-
 
     def closeDialog(self):
         self.networkCombo.clear()
@@ -102,3 +97,41 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.networkText.clear()
         self.analysisProgress.reset()
         self.close()
+
+    def tempNetwork(self, epsg):
+        output_network = uf.createTempLayer(
+            'segment_network',
+            'LINESTRING',
+            str(epsg),
+            ['id', ],
+            [QVariant.Int, ]
+        )
+        return output_network
+
+    def giveWarningMessage(self, message):
+        # Gives warning according to message
+        self.iface.messageBar().pushMessage(
+            "Network Segmenter: ",
+            "%s" % (message),
+            level=QgsMessageBar.WARNING,
+            duration=5)
+
+    def getSettings(self):
+        # Creating a combined settings dictionary
+        settings = {}
+
+        # Give warnings
+        if not self.getNetwork():
+            self.giveWarningMessage("No network selected!")
+        else:
+            # Get settings from the dialog
+            settings['network'] = self.getNetwork()
+            settings['unlinks'] = self.getUnlinks()
+            settings['stub ratio'] = self.getStubRatio()
+            settings['unlink buffer'] = self.getUnlinkBuffer()
+            settings['epsg'] = self.getNetwork().crs().authid()[5:]
+            settings['crs'] = self.getNetwork().crs()
+            settings['temp network'] = self.tempNetwork(settings['epsg'])
+            settings['output network'] = self.dlg.getNetworkOutput()
+
+            return settings
