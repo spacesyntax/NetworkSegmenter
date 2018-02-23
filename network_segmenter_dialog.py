@@ -53,8 +53,10 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.cleaningProgress.setMaximum(100)
         # Setup some defaults
         self.stubsCheckBox.setDisabled(False)
+        self.stubsCheckBox.setChecked(True)
         self.stubsSpin.setRange(1, 60)
         self.stubsSpin.setSingleStep(10)
+        self.stubsSpin.setSuffix('%')
         self.stubsSpin.setValue(40)
         self.stubsSpin.setDisabled(True)
 
@@ -109,11 +111,9 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
     def popPointPlgLayers(self, layers_list):
         self.unlinksCombo.clear()
-        if layers_list:
-            self.unlinksCombo.addItems(layers_list)
-            self.lockGUI(False)
-        else:
-            self.lockGUI(True)
+        layers_list = ['no unlinks'] + layers_list
+        self.unlinksCombo.addItems(layers_list)
+        self.lockGUI(False)
 
     def lockGUI(self, onoff):
         self.stubsCheckBox.setDisabled(onoff)
