@@ -2,7 +2,6 @@
 from qgis.core import QgsMapLayerRegistry, QgsVectorFileWriter, QgsVectorLayer, QgsFeature, QgsGeometry,QgsFields, QgsDataSourceURI
 import psycopg2
 from psycopg2.extensions import AsIs
-import math
 
 # source: ess utility functions
 
@@ -14,65 +13,13 @@ def getLayerByName(name):
             layer = i
     return layer
 
-
-def get_next_vertex(tree, all_con):
-    last = tree[-1]
-    return tree + [i for i in all_con[last] if i not in tree]
-
-
-def keep_decimals_string(string, number_decimals):
-    integer_part = string.split(".")[0]
-    # if the input is an integer there is no decimal part
-    if len(string.split("."))== 1:
-        decimal_part = str(0)*number_decimals
-    else:
-        decimal_part = string.split(".")[1][0:number_decimals]
-    if len(decimal_part) < number_decimals:
-        zeros = str(0) * int((number_decimals - len(decimal_part)))
-        decimal_part = decimal_part + zeros
-    decimal = integer_part + '.' + decimal_part
-    return decimal
-
-
-def find_vertex_index(points, f_geom):
-    for point in points:
-        yield f_geom.asPolyline().index(point.asPoint())
-
-
-def point_is_vertex(point, line):
-    #pl_l = line.asPolyline()
-    #try:
-    #    idx = pl_l.index(point.asPoint())
-    #    if idx == 0 or idx == (len(pl_l) - 1):
-    #        return True
-    #    else:
-    #        return False
-    #except ValueError:
-    #    return False
-    if point.asPoint() in line.asPolyline():
-        return True
-
-
-def vertices_from_wkt_2(wkt):
-    # the wkt representation may differ in other systems/ QGIS versions
-    # TODO: check
-    nums = [i for x in wkt[11:-1:].split(', ') for i in x.split(' ')]
-    if wkt[0:12] == u'LineString (':
-        nums = [i for x in wkt[12:-1:].split(', ') for i in x.split(' ')]
-    coords = zip(*[iter(nums)] * 2)
-    for vertex in coords:
-        yield vertex
-
-
-def make_snapped_wkt(wkt, number_decimals):
-    # TODO: check in different system if '(' is included
-    snapped_wkt = 'LINESTRING('
-    for i in vertices_from_wkt_2(wkt):
-        new_vertex = str(keep_decimals_string(i[0], number_decimals)) + ' ' + str(
-            keep_decimals_string(i[1], number_decimals))
-        snapped_wkt += str(new_vertex) + ', '
-    return snapped_wkt[0:-2] + ')'
-
+def feat_from_geom_id(geom, id):
+    feat = QgsFeature()
+    feat.initAttributes(1)
+    feat.setAttributes([id])
+    feat.setFeatureId(id)
+    feat.setGeometry(geom)
+    return feat
 
 def to_shp(path, any_features_list, layer_fields, crs, name, encoding, geom_type):
     if path is None:
@@ -194,27 +141,3 @@ def getPostgisSchemas(connstring, commit=False):
             schemas.append(schema[0])
     #return the result even if empty
     return sorted(schemas)
-
-def angle_3_points(inter_point, vertex1, vertex2):
-    inter_vertex1 = math.hypot(abs(float(inter_point[0]) - float(vertex1[0])),
-                               abs(float(inter_point[1]) - float(vertex1[1])))
-    inter_vertex2 = math.hypot(abs(float(inter_point[0]) - float(vertex2[0])),
-                               abs(float(inter_point[1]) - float(vertex2[1])))
-    vertex1_2 = math.hypot(abs(float(vertex1[0]) - float(vertex2[0])), abs(float(vertex1[1]) - float(vertex2[1])))
-    A = ((inter_vertex1 ** 2) + (inter_vertex2 ** 2) - (vertex1_2 ** 2))
-    B = (2 * inter_vertex1 * inter_vertex2)
-    if B != 0:
-        cos_angle = A / B
-    else:
-        cos_angle = NULL
-    if cos_angle < -1:
-        cos_angle = int(-1)
-    if cos_angle > 1:
-        cos_angle = int(1)
-    return math.degrees(math.acos(cos_angle))
-
-
-
-
-
-
