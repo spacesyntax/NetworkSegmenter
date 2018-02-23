@@ -1,11 +1,6 @@
 
-execfile(u'/Users/joe/Rcl-topology-cleaner/sGraph/segment_tools.py'.encode('utf-8'))
-execfile(u'/Users/joe/Rcl-topology-cleaner/sGraph/merge_tools.py'.encode('utf-8'))
-execfile(u'/Users/joe/Rcl-topology-cleaner/sGraph/utilityFunctions.py'.encode('utf-8'))
-
-execfile(u'/Users/I.Kolovou/Documents/GitHub/Road-network-cleaner/sGraph/segment_tools.py'.encode('utf-8'))
-execfile(u'/Users/I.Kolovou/Documents/GitHub/Road-network-cleaner/sGraph/merge_tools.py'.encode('utf-8'))
-execfile(u'/Users/I.Kolovou/Documents/GitHub/Road-network-cleaner/sGraph/utilityFunctions.py'.encode('utf-8'))
+execfile(u'/Users/joe/NetworkSegmenter/sGraph/segment_tools.py'.encode('utf-8'))
+execfile(u'/Users/joe/NetworkSegmenter/sGraph/utilityFunctions.py'.encode('utf-8'))
 
 # _________________________ TRANSFORMATIONS ______________________________
 
@@ -15,7 +10,7 @@ execfile(u'/Users/I.Kolovou/Documents/GitHub/Road-network-cleaner/sGraph/utility
 #layer_name = 'New scratch layer'
 #layer_name = 'Netwrok_small'
 #layer_name = 'madagascar'
-layer_name = 'comp_model_cr_cl_simpl10'
+layer_name = 'invalid'
 
 # cleaning settings
 path = None

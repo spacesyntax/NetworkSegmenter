@@ -53,6 +53,8 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.cleaningProgress.setMaximum(100)
         # Setup some defaults
         self.stubsCheckBox.setDisabled(False)
+        self.stubsCheckBox.setChecked(True)
+        self.stubsSpin.setSuffix('%')
         self.stubsSpin.setRange(1, 60)
         self.stubsSpin.setSingleStep(10)
         self.stubsSpin.setValue(40)
@@ -107,10 +109,10 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         else:
             self.lockGUI(True)
 
-    def popPointPlgLayers(self, layers_list):
+    def popUnlinksLayers(self, layers_list):
         self.unlinksCombo.clear()
         if layers_list:
-            self.unlinksCombo.addItems(layers_list)
+            self.unlinksCombo.addItems(['no unlinks'] + layers_list)
             self.lockGUI(False)
         else:
             self.lockGUI(True)
@@ -126,7 +128,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.breakagesCheckBox.setDisabled(onoff)
         self.cleanButton.setDisabled(onoff)
 
-    def getTolerance(self):
+    def getStubRatio(self):
         if self.stubsCheckBox.isChecked():
             return self.stubsSpin.value()
         else:
@@ -139,7 +141,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
             self.browseCleaned.setDisabled(False)
 
 
-    def get_unlinks(self):
+    def get_breakages(self):
         return self.breakagesCheckBox.isChecked()
 
     # TODO: return layer_name + '_segm'
@@ -164,8 +166,8 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
             self.stubsSpin.setDisabled(True)
 
     def get_settings(self):
-        settings = {'input': self.getNetwork(), 'output': self.getOutput(), 'tolerance': self.getTolerance(),
-                    'errors': self.get_errors(), 'unlinks': self.get_unlinks(),  'user_id': None, 'output_type': self.get_output_type()}
+        settings = {'input': self.getNetwork(), 'unlinks': self.getUnlinks(), 'output': self.getOutput(), 'stub_ratio': self.getStubRatio(),
+                    'breakages': self.get_breakages(),  'user_id': None, 'output_type': self.get_output_type()}
         return settings
 
     def get_dbsettings(self):

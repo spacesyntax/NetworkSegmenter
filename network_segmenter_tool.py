@@ -76,10 +76,13 @@ class NetworkSegmenterTool(QObject):
 
         # add layers to dialog
         self.updateLayers()
+        self.updateUnlinksLayers()
 
         # setup legend interface signals
         self.legend.itemAdded.connect(self.updateLayers)
         self.legend.itemRemoved.connect(self.updateLayers)
+        self.legend.itemAdded.connect(self.updateUnlinksLayers)
+        self.legend.itemRemoved.connect(self.updateUnlinksLayers)
 
         self.settings = None
 
@@ -97,6 +100,8 @@ class NetworkSegmenterTool(QObject):
         try:
             self.legend.itemAdded.disconnect(self.updateLayers)
             self.legend.itemRemoved.disconnect(self.updateLayers)
+            self.legend.itemAdded.disconnect(self.updateUnlinksLayers)
+            self.legend.itemRemoved.disconnect(self.updateUnlinksLayers)
         except TypeError:
             pass
 
@@ -136,6 +141,18 @@ class NetworkSegmenterTool(QObject):
     def updateLayers(self):
         layers = self.getActiveLayers()
         self.dlg.popActiveLayers(layers)
+
+    def getpntplgLayers(self):
+        layers_list = []
+        for layer in self.iface.legendInterface().layers():
+            if layer.isValid() and layer.type() == QgsMapLayer.VectorLayer:
+                if layer.hasGeometryType() and (layer.geometryType() in [0, 2]):
+                    layers_list.append(layer.name())
+        return layers_list
+
+    def updateUnlinksLayers(self):
+        layers = self.getpntplgLayers()
+        self.dlg.popUnlinksLayers(layers)
 
     # SOURCE: Network Segmenter https://github.com/OpenDigitalWorks/NetworkSegmenter
     # SOURCE: https://snorfalorpagus.net/blog/2013/12/07/multithreading-in-qgis-python-plugins/
