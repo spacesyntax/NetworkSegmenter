@@ -182,7 +182,7 @@ class NetworkSegmenterTool(QObject):
             cleaning.finished.connect(self.cleaningFinished)
             cleaning.error.connect(self.cleaningError)
             cleaning.warning.connect(self.giveMessage)
-            cleaning.cl_progress.connect(self.dlg.cleaningProgress.setValue)
+            cleaning.segm_progress.connect(self.dlg.cleaningProgress.setValue)
 
             thread.started.connect(cleaning.run)
             # thread.finished.connect(self.cleaningFinished)
@@ -212,7 +212,7 @@ class NetworkSegmenterTool(QObject):
         try:
             # create clean layer
             if output_type == 'shp':
-                final = to_shp(path, ret[0][0], ret[0][1], crs, 'cleaned', encoding, geom_type)
+                final = to_shp(path, ret[0][0], ret[0][1], crs, 'segmented', encoding, geom_type)
             elif output_type == 'memory':
                 final = to_shp(None, ret[0][0], ret[0][1], crs, path, encoding, geom_type)
             else:
@@ -222,18 +222,12 @@ class NetworkSegmenterTool(QObject):
             if final:
                 QgsMapLayerRegistry.instance().addMapLayer(final)
                 final.updateExtents()
-            # create errors layer
-            if self.settings['errors']:
-                errors = to_shp(None, ret[1][0], ret[1][1], crs, 'errors', encoding, geom_type)
-                if errors:
-                    QgsMapLayerRegistry.instance().addMapLayer(errors)
-                    errors.updateExtents()
             # create unlinks layer
-            if self.settings['unlinks']:
-                unlinks = to_shp(None, ret[2][0], ret[2][1], crs, 'unlinks', encoding, 0)
-                if unlinks:
-                    QgsMapLayerRegistry.instance().addMapLayer(unlinks)
-                    unlinks.updateExtents()
+            if self.settings['breakages']:
+                breakages = to_shp(None, ret[2][0], ret[2][1], crs, 'unlinks', encoding, 0)
+                if breakages:
+                    QgsMapLayerRegistry.instance().addMapLayer(breakages)
+                    breakages.updateExtents()
 
             self.iface.mapCanvas().refresh()
 
@@ -281,7 +275,7 @@ class NetworkSegmenterTool(QObject):
             self.cleaning.finished.disconnect(self.cleaningFinished)
             self.cleaning.error.disconnect(self.cleaningError)
             self.cleaning.warning.disconnect(self.giveMessage)
-            self.cleaning.cl_progress.disconnect(self.dlg.cleaningProgress.setValue)
+            self.cleaning.segm_progress.disconnect(self.dlg.cleaningProgress.setValue)
             # Clean up thread and analysis
             self.cleaning.kill()
             self.cleaning.deleteLater()
@@ -301,9 +295,9 @@ class NetworkSegmenterTool(QObject):
         # Setup signals
         finished = pyqtSignal(object)
         error = pyqtSignal(Exception, basestring)
-        cl_progress = pyqtSignal(float)
+        segm_progress = pyqtSignal(float)
         warning = pyqtSignal(str)
-        cl_killed = pyqtSignal(bool)
+        segm_killed = pyqtSignal(bool)
 
         def __init__(self, settings, iface):
             QObject.__init__(self)
@@ -323,43 +317,45 @@ class NetworkSegmenterTool(QObject):
                 try:
                     # cleaning settings
                     layer_name = self.settings['input']
+                    unlinks_layer_name = self.settings['unlinks']
                     tolerance = self.settings['tolerance']
                     # project settings
                     layer = getLayerByName(layer_name)
+                    unlinks_layer = getLayerByName(unlinks_layer_name)
 
-                    self.cl_progress.emit(2)
+                    explodedGraph = segmentTool(sEdgesFields)
 
-                    self.br = segmentTool(layer, tolerance, None, self.settings['errors'], self.settings['unlinks'])
+                    self.segm_progress.emit(2)
 
-                    if self.cl_killed is True or self.br.killed is True: return
+                    if self.segm_killed is True or self.br.killed is True: return
 
-                    self.br.add_edges()
+                    self.explodedGraph.add_edges()
 
-                    if self.cl_killed is True or self.br.killed is True: return
+                    if self.segm_killed is True or self.br.killed is True: return
 
-                    self.cl_progress.emit(5)
+                    self.segm_progress.emit(5)
                     self.total = 5
                     step = 40/ self.br.feat_count
-                    self.br.progress.connect(lambda incr=self.add_step(step): self.cl_progress.emit(incr))
+                    self.br.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
                     broken_features = self.br.break_features()
 
-                    if self.cl_killed is True or self.br.killed is True: return
+                    if self.segm_killed is True or self.br.killed is True: return
 
-                    self.cl_progress.emit(45)
+                    self.segm_progress.emit(45)
 
                     self.mrg = mergeTool(broken_features, None, True)
 
                     # TODO test
                     try:
                         step = 40/ len(self.mrg.con_1)
-                        self.mrg.progress.connect(lambda incr=self.add_step(step): self.cl_progress.emit(incr))
+                        self.mrg.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
                     except ZeroDivisionError:
                         pass
 
                     merged_features = self.mrg.merge()
 
-                    if self.cl_killed is True or self.mrg.killed is True: return
+                    if self.segm_killed is True or self.mrg.killed is True: return
 
                     fields = self.br.layer_fields
 
@@ -374,8 +370,9 @@ class NetworkSegmenterTool(QObject):
                         unlinks_list = self.br.unlinked_features
                         unlinks_fields = [QgsField('id', QVariant.Int), QgsField('line_id1', QVariant.Int), QgsField('line_id2', QVariant.Int), QgsField('x', QVariant.Double), QgsField('y', QVariant.Double)]
 
-                    if is_debug: print "survived!"
-                    self.cl_progress.emit(100)
+                    #if is_debug:
+                    print "survived!"
+                    self.segm_progress.emit(100)
                     # return cleaned data, errors and unlinks
                     ret = ((merged_features, fields), (errors_list, errors_fields), (unlinks_list, unlinks_fields))
 
@@ -386,4 +383,4 @@ class NetworkSegmenterTool(QObject):
             self.finished.emit(ret)
 
         def kill(self):
-            self.cl_killed = True
+            self.segm_killed = True
