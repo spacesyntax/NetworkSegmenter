@@ -10,23 +10,6 @@ try:
 except ImportError:
     pass
 
-
-class sEdge(QObject):
-
-    def __init__(self, e_fid, geom, attrs, original_id):
-        QObject.__init__(self)
-        self.e_fid = e_fid
-        self.original_id = original_id
-        self.geom = geom
-        self.attrs = attrs
-
-    def get_startnode(self):
-        return self.geom.asPolyline()[0]
-
-    def get_endnode(self):
-        return self.geom.asPolyline()[-1]
-
-
 class segmentTool(QObject):
 
     finished = pyqtSignal(object)
@@ -35,164 +18,297 @@ class segmentTool(QObject):
     warning = pyqtSignal(str)
     killed = pyqtSignal(bool)
 
-    #TODO:
-    def __init__(self,sEdgesFields):
+    def __init__(self,layer, tolerance, uid, errors, unlinks):
         QObject.__init__(self)
-        self.sNodesMemory ={} # xy: connectivity
-        self.sEdges = {}  # id: sEdge object
-        self.sEdgesFields = sEdgesFields + [QgsField(i[0], i[1]) for i in [('e_fid', QVariant.Int),
-                                                                           ('ancestors', QVariant.String)]]  # list of QGgsfield objects
-        self.unlinks = {}
-        self.spIndex = QgsSpatialIndex()
 
-    def addedges(self, layer):
+        self.layer = layer
+        self.feat_count = self.layer.featureCount()
+        self.tolerance = tolerance
+        self.uid = uid
+
+        self.errors = errors
+        self.errors_features = {}
+        self.unlinks = unlinks
+        self.unlinked_features = []
+        self.unlinks_count = 0
+        self.ml_keys = {}
+        self.br_keys = {}
+
+        self.features = []
+        self.attributes = {}
+        self.geometries = {}
+        self.geometries_wkt = {}
+        self.geometries_vertices = {}
+        # create spatial index object
+        self.spIndex = QgsSpatialIndex()
+        self.layer_fields = [QgsField(i.name(), i.type()) for i in self.layer.dataProvider().fields()]
+
+    def add_edges(self):
 
         new_key_count = 0
         f_count = 1
 
-        for f in layer.getFeatures():
+        for f in self.layer.getFeatures():
 
-            self.progress.emit(30 * f_count / self.feat_count)
+            self.progress.emit(3 * f_count / self.feat_count)
             f_count += 1
 
             if self.killed is True:
                 break
 
-            f_geom = f.geometry()
+            geom_type = f.geometry().wkbType()
 
-            # drop 3rd dimension
-            geom_type = f_geom.wkbType()
-            if geom_type not in [5, 2, 1] and f_geom.geometry().is3D():
-                f_geom.geometry().dropZValue()
-                geom_type = f_geom.wkbType()
+            if geom_type not in [5,2,1] and f.geometry().geometry().is3D():
+                f.geometry().geometry().dropZValue()
+                geom_type = f.geometry().wkbType()
 
-            # multilinestrings
             if geom_type == 5:
-                for multipart in f_geom.asGeometryCollection():
-                    # explode
-                    polyline = multipart.asPolyline()
-                    for i, segm in enumerate(polyline[1:]):
-                        new_key_count += 1
-                        new_geom = QgsGeometry.fromPolyline([QgsPoint(polyline[i], segm)])
-                        feat = feat_from_geom_id(new_geom, new_key_count)
-                        self.spIndex.insertFeature(feat)
-                        expl_sedge = sEdge(new_key_count, new_geom, f.attributes(), f.id())
-                        startnd = expl_sedge.get_startnode().asPoint()
-                        try:
-                            self.sNodesMemory[startnd] += 1
-                        except KeyError:
-                            self.sNodesMemory[startnd] = 1
-                        endnd = expl_sedge.get_endnode().asPoint()
-                        try:
-                            self.sNodesMemory[endnd] += 1
-                        except KeyError:
-                            self.sNodesMemory[endnd] = 1
-                        self.sEdges[new_key_count] = expl_sedge
-            # exclude points
+                if self.errors:
+                    self.errors_features[f.id()] = ('multipart', f.geometry().exportToWkt())
+                for multipart in f.geometry().asGeometryCollection():
+                    new_key_count += 1
+                    attr = f.attributes()
+                    new_feat = QgsFeature()
+                    new_feat.setAttributes(attr)
+                    new_feat.setFeatureId(new_key_count)
+                    if self.tolerance:
+                        snapped_wkt = make_snapped_wkt(multipart.exportToWkt(), self.tolerance)
+                    else:
+                        snapped_wkt = multipart.exportToWkt()
+                    snapped_geom = QgsGeometry.fromWkt(snapped_wkt)
+                    new_feat.setGeometry(snapped_geom)
+                    self.features.append(new_feat)
+                    self.attributes[new_key_count] = attr
+                    self.geometries[new_key_count] = new_feat.geometryAndOwnership()
+                    self.geometries_wkt[new_key_count] = snapped_wkt
+                    self.geometries_vertices[new_key_count] = [vertex for vertex in vertices_from_wkt_2(snapped_wkt)]
+                    # insert features to index
+                    self.spIndex.insertFeature(new_feat)
+                    self.ml_keys[new_key_count] = f.id()
             elif geom_type == 1:
-                pass
-            # exclude invalids
-            elif not f_geom.isGeosValid():
-                pass
-            # linestrings
+                if self.errors:
+                    self.errors_features[f.id()] = ('point', QgsGeometry().exportToWkt())
+            elif not f.geometry().isGeosValid():
+                if self.errors:
+                    self.errors_features[f.id()] = ('invalid', QgsGeometry().exportToWkt())
             elif geom_type == 2:
-                # explode
-                polyline = geom_type.asPolyline()
-                for i, segm in enumerate(polyline[1:]):
-                    new_geom = QgsGeometry.fromPolyline([QgsPoint(polyline[i], segm)])
-                    feat = feat_from_geom_id(new_geom, new_key_count)
-                    self.spIndex.insertFeature(feat)
-                    self.sEdges[new_key_count] = sEdge(new_key_count, new_geom, f.attributes(), f.id())
-        return
+                attr = f.attributes()
+                if self.tolerance:
+                    snapped_wkt = make_snapped_wkt(f.geometry().exportToWkt(), self.tolerance)
+                else:
+                    snapped_wkt = f.geometry().exportToWkt()
+                snapped_geom = QgsGeometry.fromWkt(snapped_wkt)
+                f.setGeometry(snapped_geom)
+                new_key_count += 1
+                f.setFeatureId(new_key_count)
+                self.features.append(f)
+                self.attributes[f.id()] = attr
+                self.geometries[f.id()] = f.geometryAndOwnership()
+                self.geometries_wkt[f.id()] = snapped_wkt
+                self.geometries_vertices[f.id()] = [vertex for vertex in vertices_from_wkt_2(snapped_wkt)]
+                # insert features to index
+                self.spIndex.insertFeature(f)
+                self.ml_keys[new_key_count] = f.id()
 
-    def prepare_unlinks(self, unlinks_layer, buffer_threshold):
-        for unlink in unlinks_layer.getFeatures():
-            # find two intersecting lines
-            unlink_geom = unlink.geometry()
-            if buffer:
-                unlink_geom = unlink_geom.buffer(buffer_threshold)
-            inter_lines = self.spIndex.intersects(unlink_geom.boundingBox())
-            if unlinks_layer.wkbType() == 1:
-                inter_lines = [x for x in inter_lines if unlink_geom.intersection(self.sEdges[x]).wkbType() == 1]
-            elif unlink_geom.wkbType() == 3:
-                inter_lines = [x for x in inter_lines if unlink_geom.intersection(self.sEdges[x]).wkbType() == 2]
-            if len(inter_lines) == 2: # excluding invalid unlinks
-                try:
-                    self.unlinks[inter_lines[0]] .append(inter_lines[1])
-                except KeyError:
-                    self.unlinks[inter_lines[0]] = [inter_lines[1]]
-        return
+    def break_features(self):
 
-    def break_features(self, stub_ratio):
-
+        broken_features = []
         f_count = 1
-        segm_id = 0
 
-        segments = []
-        breakPoints = []
-
-        # TODO: if self.breakPoints:
-        for sedge in self.sEdges.values():
+        for fid in self.geometries.keys():
 
             if self.killed is True:
                 break
 
-            f_geom = sedge.getgeom()
+            f_geom = self.geometries[fid]
+            f_attrs = self.attributes[fid]
 
             # intersecting lines
             gids = self.spIndex.intersects(f_geom.boundingBox())
 
-            # crossing lines
-            # exclude unlinks
-            gids = [gid for gid in gids if f_geom.crosses(self.sEdges[gid]) and gid not in self.unlinks[sedge.e_fid] ]
-            crossing_points = []
-            for gid in gids:
-                point = f_geom.intersection(self.sEdges[gid])
-                if point.wkbType() == 4:
-                    for p in point.asGeometryCollection():
-                        crossing_points.append((p, p.distance(sedge.startnode.getgeom())))
-                elif point.wkbType() == 1:
-                    crossing_points.append((point, point.distance(sedge.startnode.getgeom())))
-
-            self.progress.emit((60 * f_count / self.feat_count) + 30)
+            self.progress.emit((45 * f_count / self.feat_count) + 5)
             f_count += 1
 
-            if len(crossing_points) == 0:
-                # new_feat
-                segm_id += 1
-                # add new segment id
-                sedge.e_fid = segm_id
-                segments.append(sedge)
-            else:
-                crossing_points_ordered = [sorted(v, key=lambda tup: tup[1]) for v in crossing_points]
-                crossing_points_ordered = [i[0] for i in crossing_points_ordered]
-                if self.breakPoints:
-                    # not duplicates TODO?
-                    # TODO: only geom, or plus line 1 & line 2
-                    breakPoints += crossing_points_ordered
-                crossing_points_ordered = [sedge.get_startnode()] + crossing_points_ordered + [sedge.get_endnode()]
-                for i, cross_point in crossing_points_ordered[1:]:
-                    include = True
-                    new_geom = QgsGeometry.fromPolyline([QgsPoint(crossing_points_ordered[i], cross_point)])
-                    if stub_ratio:
-                        if i == 0:
-                            startnode = sedge.get_startnode()
-                            # find if sharing vertex with intersecting lines
-                            if self.sNodesMemory[startnode.asPoint()] == 1:
-                                if new_geom.length() <= stub_ratio * sedge.geom.length()/100:
-                                    include = False
-                        elif i == len(crossing_points_ordered) - 1:
-                            endnode = sedge.get_endnode()
-                            # find if sharing vertex with intersecting lines
-                            if self.sNodesMemory[endnode.asPoint()] == 1:
-                                if new_geom.length() <= stub_ratio * sedge.geom.length() / 100:
-                                    include = False
-                    if include:
-                        # new_feat
-                        segm_id += 1
-                        segments.append(sEdge(segm_id, new_geom, sedge.attrs, sedge.original_id))
+            f_errors, vertices = self.find_breakages(fid, gids)
 
-        return segments, breakPoints
+            if self.errors and f_errors:
+                original_id = self.ml_keys[fid]
+                try:
+                    updated_errors = self.errors_features[original_id][0] + f_errors
+                    self.errors_features[original_id] = (updated_errors, self.errors_features[original_id][1])
+                except KeyError:
+                    self.errors_features[original_id] = (f_errors, self.geometries[fid].exportToWkt())
+
+            if f_errors is None:
+                vertices = [0, len(f_geom.asPolyline()) - 1 ]
+
+            if f_errors in ['breakage, overlap', 'breakage', 'overlap', None]:
+                for ind, index in enumerate(vertices):
+                    if ind != len(vertices) - 1:
+                        points = [self.geometries_vertices[fid][i] for i in range(index, vertices[ind + 1] + 1)]
+                        p = ''
+                        for point in points:
+                            p += point[0] + ' ' + point[1] + ', '
+                        wkt = 'LINESTRING(' + p[:-2] + ')'
+                        self.feat_count += 1
+                        new_fid = self.feat_count
+                        new_feat = [new_fid, f_attrs, wkt]
+                        broken_features.append(new_feat)
+                        self.br_keys[new_fid] = fid
+
+        return broken_features
 
     def kill(self):
         self.br_killed = True
+
+    def find_breakages(self, fid, gids):
+
+        f_geom = self.geometries[fid]
+
+        # errors checks
+        must_break = False
+        is_closed = False
+        if f_geom.asPolyline()[0] == f_geom.asPolyline()[-1]:
+            is_closed = True
+        is_orphan = True
+        is_duplicate = False
+        has_overlaps = False
+
+        # get breaking points
+        breakages = []
+
+        # TODO: only self loops that need to break at any other point that its endpoints
+        # they get reported as errors in second iteration
+
+        # is self intersecting
+        is_self_intersersecting = False
+        for i in f_geom.asPolyline():
+            if f_geom.asPolyline().count(i) > 1:
+                point = QgsGeometry().fromPoint(QgsPoint(i[0], i[1]))
+                breakages.append(point)
+                is_self_intersersecting = True
+                must_break = True
+
+        for gid in gids:
+
+            g_geom = self.geometries[gid]
+
+            if gid < fid:
+                # duplicate geometry
+                if f_geom.isGeosEqual(g_geom):
+                    is_duplicate = True
+
+                # TODO: on output
+                if self.unlinks:
+                    if f_geom.crosses(g_geom):
+                        crossing_point = f_geom.intersection(g_geom)
+                        if crossing_point.wkbType() == 1:
+                            self.unlinks_count += 1
+                            unlinks_attrs = [[self.unlinks_count], [gid], [fid], [crossing_point.asPoint()[0]],
+                                             [crossing_point.asPoint()[1]]]
+                            self.unlinked_features.append([self.unlinks_count, unlinks_attrs, crossing_point.exportToWkt()])
+                        elif crossing_point.wkbType() == 4:
+                            for cr_point in crossing_point.asGeometryCollection():
+                                self.unlinks_count += 1
+                                unlinks_attrs = [[self.unlinks_count], [gid], [fid], [cr_point.asPoint()[0]],
+                                                 [cr_point.asPoint()[1]]]
+                                self.unlinked_features.append([self.unlinks_count, unlinks_attrs, cr_point.exportToWkt()])
+
+            if is_duplicate is False:
+                intersection = f_geom.intersection(g_geom)
+                # intersecting geometries at point
+                if intersection.wkbType() == 1 and point_is_vertex(intersection, f_geom):
+                    breakages.append(intersection)
+                    is_orphan = False
+                    must_break = True
+
+                # intersecting geometries at multiple points
+                elif intersection.wkbType() == 4:
+                    for point in intersection.asGeometryCollection():
+                        if point_is_vertex(point, f_geom):
+                            breakages.append(point)
+                            is_orphan = False
+                            must_break = True
+
+                # overalpping geometries
+                elif intersection.wkbType() == 2 and intersection.length() != f_geom.length():
+                    point1 = QgsGeometry.fromPoint(QgsPoint(intersection.asPolyline()[0]))
+                    point2 = QgsGeometry.fromPoint(QgsPoint(intersection.asPolyline()[-1]))
+                    if point_is_vertex(point1, f_geom):
+                        breakages.append(point1)
+                        is_orphan = False
+                        must_break = True
+                    if point_is_vertex(point2, f_geom):
+                        breakages.append(point2)
+                        is_orphan = False
+                        must_break = True
+
+                # overalpping multi-geometries
+                # every feature overlaps with itself as a multilinestring
+                elif intersection.wkbType() == 5 and intersection.length() != f_geom.length():
+                    point1 = QgsGeometry.fromPoint(QgsPoint(intersection.asGeometryCollection()[0].asPolyline()[0]))
+                    point2 = QgsGeometry.fromPoint(QgsPoint(intersection.asGeometryCollection()[-1].asPolyline()[-1]))
+                    if point_is_vertex(point1, f_geom):
+                        is_orphan = False
+                        has_overlaps = True
+                        breakages.append(point1)
+                    if point_is_vertex(point2, f_geom):
+                        is_orphan = False
+                        has_overlaps = True
+                        breakages.append(point2)
+
+        if is_duplicate is True:
+            return 'duplicate', []
+        else:
+            # add first and last vertex
+            vertices = set([vertex for vertex in find_vertex_index(breakages, f_geom)])
+            vertices = list(vertices) + [0] + [len(f_geom.asPolyline()) - 1]
+            vertices = list(set(vertices))
+            vertices.sort()
+
+            if is_orphan:
+                if is_closed is True:
+                    return 'closed polyline', []
+                else:
+                    return 'orphan', []
+
+            elif is_self_intersersecting:
+                if has_overlaps:
+                    return 'breakage, overlap', vertices
+                else:
+                    return 'breakage', vertices
+
+            elif has_overlaps or must_break:
+                if has_overlaps is True and must_break is True:
+                    return 'breakage, overlap', vertices
+                elif has_overlaps is True and must_break is False:
+                    return 'overlap', vertices
+                elif has_overlaps is False and must_break is True:
+                    if len(vertices) > 2:
+                        return 'breakage', vertices
+                    else:
+                        return None, []
+            else:
+                return None, []
+
+    def updateErrors(self, errors_dict):
+
+        for k, v in errors_dict.items():
+
+            try:
+                original_id = self.br_keys[k]
+                try:
+                    original_id = self.ml_keys[k]
+                except KeyError:
+                    pass
+            except KeyError:
+                original_id = None
+
+            if original_id:
+                try:
+                    updated_errors = self.errors_features[original_id][0]
+                    if ', continuous line' not in self.errors_features[original_id][0]:
+                        updated_errors += ', continuous line'
+                    self.errors_features[original_id] = (updated_errors, self.errors_features[original_id][1])
+                except KeyError:
+                    self.errors_features[original_id] = ('continuous line', self.geometries[original_id].exportToWkt())
