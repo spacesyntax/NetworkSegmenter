@@ -4,17 +4,11 @@ execfile(u'/Users/joe/NetworkSegmenter/sGraph/utilityFunctions.py'.encode('utf-8
 
 # _________________________ TRANSFORMATIONS ______________________________
 
-# transform shapefile to primal graph
 
-#layer_name = 'london_ax_ex'
-#layer_name = 'New scratch layer'
-#layer_name = 'Netwrok_small'
-#layer_name = 'madagascar'
 layer_name = 'invalid'
-
+unlinks_layer_name = 'p'
 # cleaning settings
 path = None
-tolerance = None
 
 # project settings
 layer = getLayerByName(layer_name)
@@ -22,31 +16,24 @@ crs = layer.dataProvider().crs()
 encoding = layer.dataProvider().encoding()
 geom_type = layer.dataProvider().geometryType()
 
-errors = True
+unlinks_layer = getLayerByName(unlinks_layer_name)
+flds = getQFields(layer)
+explodedGraph = segmentTool(flds)
+explodedGraph.addedges(layer)
 
-# break features
-br = breakTool(layer, tolerance, None, True, True)
-br.add_edges()
-fields = br.layer_fields
+#explodedGraph.prepare_unlinks(unlinks_layer, 0) #todo buffer_threshold
 
-broken_features = br.break_features()
+segments, breakages = explodedGraph.break_features(40, True)
 
-unlinks = to_shp(None, br.unlinked_features, [QgsField('id', QVariant.Int), QgsField('line_id1', QVariant.String), QgsField('line_id2', QVariant.String), QgsField('x', QVariant.Double), QgsField('y', QVariant.Double)], crs,'unlinks', encoding, 0)
-QgsMapLayerRegistry.instance().addMapLayer(unlinks)
+segmented = to_shp(path, [segm.qgsFeat() for segm in segments], explodedGraph.sEdgesFields, crs, 'segmented', encoding, geom_type)
+QgsMapLayerRegistry.instance().addMapLayer(segmented)
 
-#broken_network = br.to_shp(broken_features, crs, 'broken')
-#QgsMapLayerRegistry.instance().addMapLayer(broken_network)
 
-mrg = mergeTool(broken_features, None, True)
+# TODO: fix stubs, fix unlinks
 
-#fields = br.layer_fields
-#to_merge = to_shp(feat_to_merge, fields, crs, 'to_merge')
-#QgsMapLayerRegistry.instance().addMapLayer(to_merge)
 
-#to_start = to_shp(edges_to_start, fields, crs, 'to_start')
-#QgsMapLayerRegistry.instance().addMapLayer(to_start)
 
-result = mrg.merge()
+
 
 to_dblayer('geodb', 'postgres', '192.168.1.10', '5432', 'spaces2017', 'gbr_exeter', 'cleaned',  br.layer_fields, result, crs)
 

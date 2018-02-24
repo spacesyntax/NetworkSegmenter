@@ -46,7 +46,7 @@
       </widget>
      </item>
      <item row="22" column="0" colspan="3">
-      <widget class="QProgressBar" name="cleaningProgress">
+      <widget class="QProgressBar" name="segmentingProgress">
        <property name="sizePolicy">
         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
          <horstretch>0</horstretch>
@@ -209,7 +209,7 @@
       <widget class="QComboBox" name="unlinksCombo"/>
      </item>
      <item row="24" column="2">
-      <widget class="QPushButton" name="cleanButton">
+      <widget class="QPushButton" name="runButton">
        <property name="sizePolicy">
         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
          <horstretch>0</horstretch>

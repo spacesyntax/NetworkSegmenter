@@ -62,7 +62,7 @@ class NetworkSegmenterTool(QObject):
         self.dlg = None
 
         # some globals
-        self.cleaning = None
+        self.segmenting = None
         self.thread = None
 
     def loadGUI(self):
@@ -71,8 +71,8 @@ class NetworkSegmenterTool(QObject):
 
         # setup GUI signals
         self.dlg.closingPlugin.connect(self.unloadGUI)
-        self.dlg.cleanButton.clicked.connect(self.startCleaning)
-        self.dlg.cancelButton.clicked.connect(self.killCleaning)
+        self.dlg.runButton.clicked.connect(self.startSegmenting)
+        self.dlg.cancelButton.clicked.connect(self.killSegmenting)
 
         # add layers to dialog
         self.updateLayers()
@@ -86,6 +86,8 @@ class NetworkSegmenterTool(QObject):
 
         self.settings = None
 
+        print 'set',  self.settings
+
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
@@ -94,8 +96,8 @@ class NetworkSegmenterTool(QObject):
     def unloadGUI(self):
         if self.dlg:
             self.dlg.closingPlugin.disconnect(self.unloadGUI)
-            self.dlg.cleanButton.clicked.disconnect(self.startCleaning)
-            self.dlg.cancelButton.clicked.disconnect(self.killCleaning)
+            self.dlg.runButton.clicked.disconnect(self.startSegmenting)
+            self.dlg.cancelButton.clicked.disconnect(self.killSegmenting)
             self.settings = None
         try:
             self.legend.itemAdded.disconnect(self.updateLayers)
@@ -161,34 +163,35 @@ class NetworkSegmenterTool(QObject):
         # Gives warning according to message
         self.iface.messageBar().pushMessage("Network segmenter: ", "%s" % (message), level, duration=5)
 
-    def cleaningError(self, e, exception_string):
+    def segmentingError(self, e, exception_string):
         # Gives error according to message
-        QgsMessageLog.logMessage('Cleaning thread raised an exception: %s' % exception_string, level=QgsMessageLog.CRITICAL)
+        QgsMessageLog.logMessage('Segmenting thread raised an exception: %s' % exception_string, level=QgsMessageLog.CRITICAL)
         self.dlg.close()
 
-    def startCleaning(self):
-        self.dlg.cleaningProgress.reset()
+    def startSegmenting(self):
+        print 'started'
+        self.dlg.segmentingProgress.reset()
         self.settings = self.dlg.get_settings()
+        print 'set', self.settings
         if self.settings['output_type'] == 'postgis':
             db_settings = self.dlg.get_dbsettings()
             self.settings.update(db_settings)
 
         if self.settings['input']:
 
-            cleaning = self.clean(self.settings, self.iface)
-            # start the cleaning in a new thread
+            segmenting = self.segment(self.settings, self.iface)
+            # start the segmenting in a new thread
             thread = QThread()
-            cleaning.moveToThread(thread)
-            cleaning.finished.connect(self.cleaningFinished)
-            cleaning.error.connect(self.cleaningError)
-            cleaning.warning.connect(self.giveMessage)
-            cleaning.segm_progress.connect(self.dlg.cleaningProgress.setValue)
+            segmenting.moveToThread(thread)
+            segmenting.finished.connect(self.segmentingFinished)
+            segmenting.error.connect(self.segmentingError)
+            segmenting.warning.connect(self.giveMessage)
+            segmenting.segm_progress.connect(self.dlg.segmentingProgress.setValue)
 
-            thread.started.connect(cleaning.run)
-            # thread.finished.connect(self.cleaningFinished)
+            thread.started.connect(segmenting.run)
 
             self.thread = thread
-            self.cleaning = cleaning
+            self.segmenting = segmenting
 
             self.thread.start()
 
@@ -197,9 +200,10 @@ class NetworkSegmenterTool(QObject):
             self.giveMessage('Missing user input!', QgsMessageBar.INFO)
             return
 
-    def cleaningFinished(self, ret):
-        if is_debug: print 'trying to finish'
-        # get cleaning settings
+    def segmentingFinished(self, ret):
+        #if is_debug:
+        print 'trying to finish'
+        # get segmenting settings
         layer_name = self.settings['input']
         path = self.settings['output']
         output_type = self.settings['output_type']
@@ -208,7 +212,7 @@ class NetworkSegmenterTool(QObject):
         crs = layer.dataProvider().crs()
         encoding = layer.dataProvider().encoding()
         geom_type = layer.dataProvider().geometryType()
-        # create the cleaning results layers
+        # create the segmenting results layers
         try:
             # create clean layer
             if output_type == 'shp':
@@ -235,11 +239,10 @@ class NetworkSegmenterTool(QObject):
 
         except Exception, e:
             # notify the user that sth went wrong
-            self.cleaning.error.emit(e, traceback.format_exc())
+            self.segmenting.error.emit(e, traceback.format_exc())
             self.giveMessage('Something went wrong! See the message log for more information', QgsMessageBar.CRITICAL)
 
         # clean up the worker and thread
-        #self.cleaning.deleteLater()
         self.thread.quit()
         self.thread.wait()
         self.thread.deleteLater()
@@ -248,49 +251,49 @@ class NetworkSegmenterTool(QObject):
         if is_debug: print 'has finished ', self.thread.isFinished()
 
         self.thread = None
-        self.cleaning = None
+        self.segmenting = None
 
         if self.dlg:
-            self.dlg.cleaningProgress.reset()
+            self.dlg.segmentingProgress.reset()
             self.dlg.close()
 
-    def killCleaning(self):
+    def killSegmenting(self):
         if is_debug: print 'trying to cancel'
         # add emit signal to segmenttool or mergeTool only to stop the loop
-        if self.cleaning:
+        if self.segmenting:
 
             try:
-                dummy = self.cleaning.br
+                dummy = self.segmenting.br
                 del dummy
-                self.cleaning.br.killed = True
+                self.segmenting.br.killed = True
             except AttributeError:
                 pass
             try:
-                dummy = self.cleaning.mrg
+                dummy = self.segmenting.mrg
                 del dummy
-                self.cleaning.mrg.killed = True
+                self.segmenting.mrg.killed = True
             except AttributeError:
                 pass
             # Disconnect signals
-            self.cleaning.finished.disconnect(self.cleaningFinished)
-            self.cleaning.error.disconnect(self.cleaningError)
-            self.cleaning.warning.disconnect(self.giveMessage)
-            self.cleaning.segm_progress.disconnect(self.dlg.cleaningProgress.setValue)
+            self.segmenting.finished.disconnect(self.segmentingFinished)
+            self.segmenting.error.disconnect(self.segmentingError)
+            self.segmenting.warning.disconnect(self.giveMessage)
+            self.segmenting.segm_progress.disconnect(self.dlg.segmentingProgress.setValue)
             # Clean up thread and analysis
-            self.cleaning.kill()
-            self.cleaning.deleteLater()
+            self.segmenting.kill()
+            self.segmenting.deleteLater()
             self.thread.quit()
             self.thread.wait()
             self.thread.deleteLater()
-            self.cleaning = None
-            self.dlg.cleaningProgress.reset()
+            self.segmenting = None
+            self.dlg.segmentingProgress.reset()
             self.dlg.close()
         else:
             self.dlg.close()
 
 
     # SOURCE: https://snorfalorpagus.net/blog/2013/12/07/multithreading-in-qgis-python-plugins/
-    class clean(QObject):
+    class segment(QObject):
 
         # Setup signals
         finished = pyqtSignal(object)
@@ -315,72 +318,54 @@ class NetworkSegmenterTool(QObject):
             ret = None
             if self.settings:
                 try:
-                    # cleaning settings
+                    # segmenting settings
                     layer_name = self.settings['input']
                     unlinks_layer_name = self.settings['unlinks']
-                    tolerance = self.settings['tolerance']
                     # project settings
                     layer = getLayerByName(layer_name)
-                    unlinks_layer = getLayerByName(unlinks_layer_name)
+                    if unlinks_layer_name:
+                        unlinks_layer = getLayerByName(unlinks_layer_name)
 
-                    explodedGraph = segmentTool(sEdgesFields)
+                    flds = getQFields(layer)
+                    explodedGraph = segmentTool(flds)
 
-                    self.segm_progress.emit(2)
+                    if unlinks_layer_name:
+                        explodedGraph.prepare_unlinks(unlinks_layer, 0) #todo buffer_threshold
 
-                    if self.segm_killed is True or self.br.killed is True: return
+                    if self.segm_killed is True or explodedGraph.killed is True: return
 
-                    self.explodedGraph.add_edges()
+                    step = 30 / self.layer.featureCount()
+                    explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
-                    if self.segm_killed is True or self.br.killed is True: return
+                    explodedGraph.add_edges(layer)
 
-                    self.segm_progress.emit(5)
-                    self.total = 5
-                    step = 40/ self.br.feat_count
-                    self.br.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+                    self.segm_progress.emit(30)
 
-                    broken_features = self.br.break_features()
+                    self.total = 30
+                    step = 65/ max(self.explodedGraph.sEdges.keys())
+                    explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
-                    if self.segm_killed is True or self.br.killed is True: return
+                    segments, breakages = self.explodedGraph.break_features(self.settings['stub_ratio'])
 
-                    self.segm_progress.emit(45)
+                    if self.segm_killed is True or explodedGraph.killed is True: return
 
-                    self.mrg = mergeTool(broken_features, None, True)
+                    fields = self.explodedGraph.sEdgesFields
 
-                    # TODO test
-                    try:
-                        step = 40/ len(self.mrg.con_1)
-                        self.mrg.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
-                    except ZeroDivisionError:
-                        pass
-
-                    merged_features = self.mrg.merge()
-
-                    if self.segm_killed is True or self.mrg.killed is True: return
-
-                    fields = self.br.layer_fields
-
-                    # prepare other output data
-                    ((errors_list, errors_fields), (unlinks_list, unlinks_fields)) = ((None, None), (None, None))
-                    if self.settings['errors']:
-                        self.br.updateErrors(self.mrg.errors_features)
-                        errors_list = [[k, [[k], [v[0]]], v[1]] for k, v in self.br.errors_features.items()]
-                        errors_fields = [QgsField('id_input', QVariant.Int), QgsField('errors', QVariant.String)]
-
-                    if self.settings['unlinks']:
-                        unlinks_list = self.br.unlinked_features
-                        unlinks_fields = [QgsField('id', QVariant.Int), QgsField('line_id1', QVariant.Int), QgsField('line_id2', QVariant.Int), QgsField('x', QVariant.Double), QgsField('y', QVariant.Double)]
+                    # todo errors_list = [[k, [[k], [v[0]]], v[1]] for k, v in self.br.errors_features.items()]
 
                     #if is_debug:
                     print "survived!"
                     self.segm_progress.emit(100)
                     # return cleaned data, errors and unlinks
-                    ret = ((merged_features, fields), (errors_list, errors_fields), (unlinks_list, unlinks_fields))
+                    ret = ((segments, fields), (breakages, breakages_fields))
 
                 except Exception, e:
                     # forward the exception upstream
+                    # print 'exception'
                     self.error.emit(e, traceback.format_exc())
 
             self.finished.emit(ret)
 
         def kill(self):
+            print 'killed'
             self.segm_killed = True

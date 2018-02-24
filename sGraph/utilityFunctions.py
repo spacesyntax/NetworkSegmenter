@@ -5,6 +5,9 @@ from psycopg2.extensions import AsIs
 
 # source: ess utility functions
 
+def getQFields(layer):
+    return [QgsField(i.name(), i.type()) for i in layer.dataProvider().fields()]
+
 
 def getLayerByName(name):
     layer = None
@@ -25,6 +28,8 @@ def to_shp(path, any_features_list, layer_fields, crs, name, encoding, geom_type
     if path is None:
         if geom_type == 0:
             network = QgsVectorLayer('Point?crs=' + crs.toWkt(), name, "memory")
+        elif geom_type == 3:
+            network = QgsVectorLayer('Polygon?crs=' + crs.toWkt(), name, "memory")
         else:
             network = QgsVectorLayer('LineString?crs=' + crs.toWkt(), name, "memory")
     else:
@@ -39,16 +44,8 @@ def to_shp(path, any_features_list, layer_fields, crs, name, encoding, geom_type
     pr = network.dataProvider()
     if path is None:
         pr.addAttributes(layer_fields)
-    new_features = []
-    for i in any_features_list:
-        new_feat = QgsFeature()
-        new_feat.setFeatureId(i[0])
-        new_feat.setAttributes([attr[0] for attr in i[1]])
-        new_feat.setGeometry(QgsGeometry(QgsGeometry.fromWkt(str(i[2]))))
-        #QgsGeometry()
-        new_features.append(new_feat)
     network.startEditing()
-    pr.addFeatures(new_features)
+    pr.addFeatures(any_features_list)
     network.commitChanges()
     return network
 

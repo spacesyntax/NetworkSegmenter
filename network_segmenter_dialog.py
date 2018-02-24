@@ -3,7 +3,7 @@
 /***************************************************************************
  NetworkSegmenterDialog
                                  A QGIS plugin
- This plugin clean a road centre line map.
+ This plugin segments a road centre line map.
                              -------------------
         begin                : 2016-11-10
         git sha              : $Format:%H$
@@ -49,8 +49,8 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         #self.outputCleaned.setText("segmented")
 
         # Setup the progress bar
-        self.cleaningProgress.setMinimum(0)
-        self.cleaningProgress.setMaximum(100)
+        self.segmentingProgress.setMinimum(0)
+        self.segmentingProgress.setMaximum(100)
         # Setup some defaults
         self.stubsCheckBox.setDisabled(False)
         self.stubsCheckBox.setChecked(True)
@@ -93,7 +93,10 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         return self.inputCombo.currentText()
 
     def getUnlinks(self):
-        return self.unlinksCombo.currentText()
+        if self.unlinksCombo.currentText() == 'no unlinks':
+            return None
+        else:
+            return self.unlinksCombo.currentText()
 
     def getOutput(self):
         if self.outputCleaned.text() != 'segmented':
@@ -111,11 +114,8 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
     def popUnlinksLayers(self, layers_list):
         self.unlinksCombo.clear()
-        if layers_list:
-            self.unlinksCombo.addItems(['no unlinks'] + layers_list)
-            self.lockGUI(False)
-        else:
-            self.lockGUI(True)
+        self.unlinksCombo.addItems(['no unlinks'] + layers_list)
+        self.lockGUI(False)
 
     def lockGUI(self, onoff):
         self.stubsCheckBox.setDisabled(onoff)
@@ -126,7 +126,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.outputCleaned.setDisabled(onoff)
         self.disable_browse()
         self.breakagesCheckBox.setDisabled(onoff)
-        self.cleanButton.setDisabled(onoff)
+        self.runButton.setDisabled(onoff)
 
     def getStubRatio(self):
         if self.stubsCheckBox.isChecked():
