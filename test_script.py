@@ -1,16 +1,9 @@
-
 execfile(u'/Users/joe/NetworkSegmenter/sGraph/segment_tools.py'.encode('utf-8'))
 execfile(u'/Users/joe/NetworkSegmenter/sGraph/utilityFunctions.py'.encode('utf-8'))
 
-# _________________________ TRANSFORMATIONS ______________________________
-
-
 layer_name = 'invalid'
-unlinks_layer_name = 'p'
-# cleaning settings
+unlinks_layer_name = 'unlinks'
 path = None
-
-# project settings
 layer = getLayerByName(layer_name)
 crs = layer.dataProvider().crs()
 encoding = layer.dataProvider().encoding()
@@ -20,10 +13,10 @@ unlinks_layer = getLayerByName(unlinks_layer_name)
 flds = getQFields(layer)
 explodedGraph = segmentTool(flds)
 explodedGraph.addedges(layer)
+segments, breakages = explodedGraph.break_features(40, True, unlinks_layer, None) #todo test buffer_threshold
 
-#explodedGraph.prepare_unlinks(unlinks_layer, 0) #todo buffer_threshold
-
-segments, breakages = explodedGraph.break_features(40, True)
+expl = to_shp(path, [sedge.qgsFeat() for sedge in explodedGraph.sEdges.values()], explodedGraph.sEdgesFields, crs, 'expl', encoding, geom_type)
+QgsMapLayerRegistry.instance().addMapLayer(expl)
 
 segmented = to_shp(path, [segm.qgsFeat() for segm in segments], explodedGraph.sEdgesFields, crs, 'segmented', encoding, geom_type)
 QgsMapLayerRegistry.instance().addMapLayer(segmented)

@@ -129,21 +129,31 @@ class segmentTool(QObject):
         return
 
     def prepare_unlinks(self, unlinks_layer, buffer_threshold):
+        print 'preparing..'
         for unlink in unlinks_layer.getFeatures():
+            print '+1 unlink'
             # find two intersecting lines
             unlink_geom = unlink.geometry()
-            if buffer:
-                unlink_geom = unlink_geom.buffer(buffer_threshold)
+            if buffer_threshold:
+                unlink_geom = unlink_geom.buffer(buffer_threshold, 22)
             inter_lines = self.spIndex.intersects(unlink_geom.boundingBox())
-            if unlinks_layer.wkbType() == 1:
-                inter_lines = [x for x in inter_lines if unlink_geom.intersection(self.sEdges[x]).wkbType() == 1]
-            elif unlink_geom.wkbType() == 3:
-                inter_lines = [x for x in inter_lines if unlink_geom.intersection(self.sEdges[x]).wkbType() == 2]
+
+            if unlinks_layer.geometryType() in [0,2]:
+                inter_lines = [x for x in inter_lines if unlink_geom.distance(self.sEdges[x].geom) <= 0.0001]
+            print 'inter_lines', inter_lines
             if len(inter_lines) == 2: # excluding invalid unlinks
-                self.unlinks[inter_lines[0]] .append(inter_lines[1])
+                self.unlinks[inter_lines[0]].append(inter_lines[1])
+                self.unlinks[inter_lines[1]].append(inter_lines[0])
+            elif len(inter_lines) == 1: # self intersecting
+                self.unlinks[inter_lines[0]].append(inter_lines[0])
         return
 
-    def break_features(self, stub_ratio, getBreakPoints):
+    def break_features(self, stub_ratio, getBreakPoints, unlinks_layer, buffer_threshold):
+
+        if unlinks_layer:
+            self.prepare_unlinks(unlinks_layer, buffer_threshold)
+
+        print self.unlinks
 
         f_count = 1
         segm_id = 0
