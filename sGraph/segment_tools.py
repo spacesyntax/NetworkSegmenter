@@ -202,13 +202,13 @@ class segmentTool(QObject):
                             startnode = sedge.get_startnode()
                             # find if sharing vertex with intersecting lines
                             if self.sNodesMemory[(startnode[0], startnode[1])] == 1:
-                                if new_geom.length() <= stub_ratio * sedge.geom.length()/100:
+                                if new_geom.length() <= (stub_ratio/100) * sedge.geom.length():
                                     include = False
                         elif i == len(crossing_points_ordered) - 1:
                             endnode = sedge.get_endnode()
                             # find if sharing vertex with intersecting lines
                             if self.sNodesMemory[(endnode[0], endnode[1])] == 1:
-                                if new_geom.length() <= stub_ratio * sedge.geom.length() / 100:
+                                if new_geom.length() <= (stub_ratio/100) * sedge.geom.length():
                                     include = False
                     if include:
                         # new_feat
