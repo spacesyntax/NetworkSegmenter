@@ -21,8 +21,7 @@ QgsMapLayerRegistry.instance().addMapLayer(expl)
 segmented = to_shp(path, [segm.qgsFeat() for segm in segments], explodedGraph.sEdgesFields, crs, 'segmented', encoding, geom_type)
 QgsMapLayerRegistry.instance().addMapLayer(segmented)
 
-
-# TODO: fix stubs, fix unlinks
+# TODO: fix stubs
 
 
 

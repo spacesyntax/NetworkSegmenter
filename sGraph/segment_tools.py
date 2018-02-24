@@ -131,7 +131,6 @@ class segmentTool(QObject):
     def prepare_unlinks(self, unlinks_layer, buffer_threshold):
         print 'preparing..'
         for unlink in unlinks_layer.getFeatures():
-            print '+1 unlink'
             # find two intersecting lines
             unlink_geom = unlink.geometry()
             if buffer_threshold:
@@ -140,7 +139,6 @@ class segmentTool(QObject):
 
             if unlinks_layer.geometryType() in [0,2]:
                 inter_lines = [x for x in inter_lines if unlink_geom.distance(self.sEdges[x].geom) <= 0.0001]
-            print 'inter_lines', inter_lines
             if len(inter_lines) == 2: # excluding invalid unlinks
                 self.unlinks[inter_lines[0]].append(inter_lines[1])
                 self.unlinks[inter_lines[1]].append(inter_lines[0])
@@ -150,10 +148,9 @@ class segmentTool(QObject):
 
     def break_features(self, stub_ratio, getBreakPoints, unlinks_layer, buffer_threshold):
 
+        print 'stub_ratio', stub_ratio
         if unlinks_layer:
             self.prepare_unlinks(unlinks_layer, buffer_threshold)
-
-        print self.unlinks
 
         f_count = 1
         segm_id = 0
@@ -211,15 +208,21 @@ class segmentTool(QObject):
                         if i == 0:
                             startnode = sedge.get_startnode()
                             # find if sharing vertex with intersecting lines
+                            print self.sNodesMemory[(startnode[0], startnode[1])]
                             if self.sNodesMemory[(startnode[0], startnode[1])] == 1:
-                                if new_geom.length() <= (stub_ratio/100) * sedge.geom.length():
+                                print True, new_geom.length() / sedge.geom.length()
+                                if new_geom.length() / sedge.geom.length() <= (stub_ratio/float(100)):
                                     include = False
-                        elif i == len(crossing_points_ordered) - 1:
+                                    print True
+                        elif i == len(crossing_points_ordered) - 2:
                             endnode = sedge.get_endnode()
                             # find if sharing vertex with intersecting lines
+                            print self.sNodesMemory[(endnode[0], endnode[1])]
                             if self.sNodesMemory[(endnode[0], endnode[1])] == 1:
-                                if new_geom.length() <= (stub_ratio/100) * sedge.geom.length():
+                                print True, new_geom.length() / sedge.geom.length()
+                                if new_geom.length() / sedge.geom.length() <= (stub_ratio/float(100)):
                                     include = False
+                                    print True
                     if include:
                         # new_feat
                         segm_id += 1
