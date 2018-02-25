@@ -29,7 +29,9 @@ def to_shp(path, any_features_list, layer_fields, crs, name, encoding, geom_type
     if path is None:
         if geom_type == 0:
             network = QgsVectorLayer('Point?crs=' + crs.toWkt(), name, "memory")
-        elif geom_type == 2:
+        elif geom_type == 3:
+            network = QgsVectorLayer('Polygon?crs=' + crs.toWkt(), name, "memory")
+        else:
             network = QgsVectorLayer('LineString?crs=' + crs.toWkt(), name, "memory")
     else:
         fields = QgsFields()
