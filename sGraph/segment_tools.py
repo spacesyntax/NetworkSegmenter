@@ -131,8 +131,6 @@ class segmentTool(QObject):
                         self.sEdges[new_key_count] = expl_sedge
                         self.unlinks[new_key_count] = []
         except Exception, e:
-            self.er = e
-            self.trcb = traceback.format_exc()
             self.error.emit(e, traceback.format_exc()) #TODO: error
         return
 
@@ -209,6 +207,7 @@ class segmentTool(QObject):
                         for pgeom in crossing_points_ordered:
                             self.breakagescount += 1
                             breakPoints.append(feat_from_geom_id(pgeom, self.breakagescount))
+                            print 'p', pgeom.exportToWkt()
                     crossing_points_ordered = [i.asPoint() for i in crossing_points_ordered]
                     crossing_points_ordered = [sedge.get_startnode()] + crossing_points_ordered + [sedge.get_endnode()]
                     for i, cross_point in enumerate(crossing_points_ordered[1:]):
@@ -218,21 +217,15 @@ class segmentTool(QObject):
                             if i == 0:
                                 startnode = sedge.get_startnode()
                                 # find if sharing vertex with intersecting lines
-                                print self.sNodesMemory[(startnode[0], startnode[1])]
                                 if self.sNodesMemory[(startnode[0], startnode[1])] == 1:
-                                    print True, new_geom.length() / sedge.geom.length()
                                     if new_geom.length() / sedge.geom.length() <= (stub_ratio/float(100)):
                                         include = False
-                                        print True
                             elif i == len(crossing_points_ordered) - 2:
                                 endnode = sedge.get_endnode()
                                 # find if sharing vertex with intersecting lines
-                                print self.sNodesMemory[(endnode[0], endnode[1])]
                                 if self.sNodesMemory[(endnode[0], endnode[1])] == 1:
-                                    print True, new_geom.length() / sedge.geom.length()
                                     if new_geom.length() / sedge.geom.length() <= (stub_ratio/float(100)):
                                         include = False
-                                        print True
                         if include:
                             # new_feat
                             segm_id += 1
@@ -240,6 +233,8 @@ class segmentTool(QObject):
                             segm_sedge.attrs['e_fid'] = segm_id
                             segm_sedge.attrs['original_id'] = segm_sedge.original_id
                             segments.append(segm_sedge)
+
+                print breakPoints
 
         except Exception, e:
             self.error.emit(e, traceback.format_exc())

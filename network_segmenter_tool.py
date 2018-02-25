@@ -355,10 +355,9 @@ class NetworkSegmenterTool(QObject):
                 breakages_fields = explodedGraph.breakagesFields
                 # if is_debug:
                 print "survived!"
-                print 'len', len(breakages)
                 self.segm_progress.emit(95)
                 # return cleaned data, errors and unlinks
-                ret = ((segments, fields), (breakages, breakages_fields))  # todo breakages_fields (breakages, None)
+                ret = ((segments, fields), (breakages, breakages_fields))
 
                 #except Exception, e:
                     # forward the exception upstream
