@@ -345,7 +345,7 @@ class NetworkSegmenterTool(QObject):
                     num_expl_feat = 1
                 step = 65 / float(num_expl_feat) #fix division by 0
 
-                # TODO? explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+                explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
                 #try:
                 segments, breakages = explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
@@ -356,15 +356,7 @@ class NetworkSegmenterTool(QObject):
                 print "survived!"
                 self.segm_progress.emit(95)
                 # return cleaned data, errors and unlinks
-                #segments = []
                 ret = ((segments, fields),)  # todo breakages_fields (breakages, None)
-                #except Exception, e:
-                #    print explodedGraph.er, 'error graph'
-                #    if explodedGraph.er:
-                #        self.error.emit(explodedGraph.er, explodedGraph.trcb)
-                #    else:
-                #        self.error.emit(e, traceback.format_exc())
-                #    ret = ()
 
                 #except Exception, e:
                     # forward the exception upstream
