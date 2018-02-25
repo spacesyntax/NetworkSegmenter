@@ -58,8 +58,8 @@ class segmentTool(QObject):
         self.unlinks = {}
         self.spIndex = QgsSpatialIndex()
 
-        self.er = None
-        self.trcb = None
+        self.breakagescount = 0
+        self.breakagesFields = [QgsField('id', QVariant.Int)]
 
     def addedges(self, layer):
 
@@ -144,9 +144,8 @@ class segmentTool(QObject):
             if buffer_threshold:
                 unlink_geom = unlink_geom.buffer(buffer_threshold, 22)
             inter_lines = self.spIndex.intersects(unlink_geom.boundingBox())
-
             if unlinks_layer.geometryType() in [0,2]:
-                inter_lines = [x for x in inter_lines if unlink_geom.distance(self.sEdges[x].geom) <= 0.0001]
+                inter_lines = [x for x in inter_lines if unlink_geom.distance(self.sEdges[x].geom) <= 0.0001] # network tolerance todo user input??
             if len(inter_lines) == 2: # excluding invalid unlinks
                 self.unlinks[inter_lines[0]].append(inter_lines[1])
                 self.unlinks[inter_lines[1]].append(inter_lines[0])
@@ -203,11 +202,14 @@ class segmentTool(QObject):
                 else:
 
                     crossing_points_ordered = sorted(crossing_points, key=lambda tup: tup[1])
-                    crossing_points_ordered = [i[0].asPoint() for i in crossing_points_ordered]
+                    crossing_points_ordered = [i[0] for i in crossing_points_ordered]
                     if getBreakPoints:
                         # not duplicates TODO?
                         # TODO: only geom, or plus line 1 & line 2
-                        breakPoints += crossing_points_ordered
+                        for pgeom in crossing_points_ordered:
+                            self.breakagescount += 1
+                            breakPoints.append(feat_from_geom_id(pgeom, self.breakagescount))
+                    crossing_points_ordered = [i.asPoint() for i in crossing_points_ordered]
                     crossing_points_ordered = [sedge.get_startnode()] + crossing_points_ordered + [sedge.get_endnode()]
                     for i, cross_point in enumerate(crossing_points_ordered[1:]):
                         include = True

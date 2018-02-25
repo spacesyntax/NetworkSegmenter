@@ -232,10 +232,11 @@ class NetworkSegmenterTool(QObject):
                 final.updateExtents()
             # create unlinks layer
             if self.settings['breakages']:
-                breakages = to_shp(None, ret[2][0], ret[2][1], crs, 'unlinks', encoding, 0)
-                if breakages:
-                    QgsMapLayerRegistry.instance().addMapLayer(breakages)
-                    breakages.updateExtents()
+                print 't', type(ret[1][0][0])
+                break_Points = to_shp(None, ret[1][0], ret[1][1], crs, 'break points', encoding, 0)
+                if break_Points:
+                    QgsMapLayerRegistry.instance().addMapLayer(break_Points)
+                    break_Points.updateExtents()
 
             self.iface.mapCanvas().refresh()
 
@@ -351,11 +352,13 @@ class NetworkSegmenterTool(QObject):
 
                 if self.segm_killed is True or explodedGraph.killed is True: return
                 fields = explodedGraph.sEdgesFields
+                breakages_fields = explodedGraph.breakagesFields
                 # if is_debug:
                 print "survived!"
+                print 'len', len(breakages)
                 self.segm_progress.emit(95)
                 # return cleaned data, errors and unlinks
-                ret = ((segments, fields),)  # todo breakages_fields (breakages, None)
+                ret = ((segments, fields), (breakages, breakages_fields))  # todo breakages_fields (breakages, None)
 
                 #except Exception, e:
                     # forward the exception upstream
