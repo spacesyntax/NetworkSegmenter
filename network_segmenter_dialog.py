@@ -60,6 +60,12 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.stubsSpin.setValue(40)
         self.stubsSpin.setDisabled(True)
 
+        self.bufferSpinBox.setSuffix('m')
+        self.bufferSpinBox.setRange(0, 50)
+        self.bufferSpinBox.setSingleStep(1)
+        self.bufferSpinBox.setValue(0)
+        self.bufferSpinBox.setDisabled(False)
+
         self.memoryRadioButton.setChecked(True)
         self.shpRadioButton.setChecked(False)
         self.postgisRadioButton.setChecked(False)
@@ -134,6 +140,13 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         else:
             return None
 
+    def getBuffer(self):
+        buf_value = self.bufferSpinBox.value()
+        if buf_value != 0:
+            return self.bufferSpinBox.value()
+        else:
+            return None
+
     def disable_browse(self):
         if self.memoryRadioButton.isChecked():
             self.browseCleaned.setDisabled(True)
@@ -167,7 +180,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
     def get_settings(self):
         settings = {'input': self.getNetwork(), 'unlinks': self.getUnlinks(), 'output': self.getOutput(), 'stub_ratio': self.getStubRatio(),
-                    'breakages': self.get_breakages(),  'user_id': None, 'output_type': self.get_output_type()}
+                    'breakages': self.get_breakages(), 'buffer': self.getBuffer(), 'user_id': None, 'output_type': self.get_output_type()}
         return settings
 
     def get_dbsettings(self):
