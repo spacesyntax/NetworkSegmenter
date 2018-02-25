@@ -240,8 +240,6 @@ class segmentTool(QObject):
                             segments.append(segm_sedge)
 
         except Exception, e:
-            self.er = e
-            self.trcb = traceback.format_exc()
             self.error.emit(e, traceback.format_exc())
 
         return segments, breakPoints
