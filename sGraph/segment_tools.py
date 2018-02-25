@@ -204,10 +204,7 @@ class segmentTool(QObject):
                     if getBreakPoints:
                         # not duplicates TODO?
                         # TODO: only geom, or plus line 1 & line 2
-                        for pgeom in crossing_points_ordered:
-                            self.breakagescount += 1
-                            breakPoints.append(feat_from_geom_id(pgeom, self.breakagescount))
-                            print 'p', pgeom.exportToWkt()
+                        breakPoints += crossing_points_ordered
                     crossing_points_ordered = [i.asPoint() for i in crossing_points_ordered]
                     crossing_points_ordered = [sedge.get_startnode()] + crossing_points_ordered + [sedge.get_endnode()]
                     for i, cross_point in enumerate(crossing_points_ordered[1:]):
