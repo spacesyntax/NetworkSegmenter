@@ -172,6 +172,7 @@ class NetworkSegmenterTool(QObject):
         print 'started'
         self.dlg.segmentingProgress.reset()
         self.settings = self.dlg.get_settings()
+        print self.settings
         print 'set', self.settings
         if self.settings['output_type'] == 'postgis':
             db_settings = self.dlg.get_dbsettings()
@@ -203,6 +204,7 @@ class NetworkSegmenterTool(QObject):
     def segmentingFinished(self, ret):
         #if is_debug:
         print 'trying to finish'
+        print 'set2', self.settings
         # get segmenting settings
         layer_name = self.settings['input']
         path = self.settings['output']
@@ -216,9 +218,11 @@ class NetworkSegmenterTool(QObject):
         try:
             # create clean layer
             if output_type == 'shp':
-                final = to_shp(path, ret[0][0], ret[0][1], crs, 'segmented', encoding, geom_type)
+                final = to_shp(path, [segm.qgsFeat() for segm in
+                                      ret[0][0]], ret[0][1], crs, 'segmented',  encoding, geom_type)
             elif output_type == 'memory':
-                final = to_shp(None, ret[0][0], ret[0][1], crs, path, encoding, geom_type)
+                final = to_shp(None, [segm.qgsFeat() for segm in
+                                      ret[0][0]], ret[0][1], crs, 'segmented',  encoding, geom_type)
             else:
                 final = to_dblayer(self.settings['dbname'], self.settings['user'], self.settings['host'],
                                    self.settings['port'], self.settings['password'], self.settings['schema'],
@@ -258,20 +262,15 @@ class NetworkSegmenterTool(QObject):
             self.dlg.close()
 
     def killSegmenting(self):
-        if is_debug: print 'trying to cancel'
+        #if is_debug:
+        print 'trying to cancel'
         # add emit signal to segmenttool or mergeTool only to stop the loop
         if self.segmenting:
 
             try:
-                dummy = self.segmenting.br
+                dummy = self.segmenting.explodedGraph
                 del dummy
-                self.segmenting.br.killed = True
-            except AttributeError:
-                pass
-            try:
-                dummy = self.segmenting.mrg
-                del dummy
-                self.segmenting.mrg.killed = True
+                self.segmenting.explodedGraph.killed = True
             except AttributeError:
                 pass
             # Disconnect signals
@@ -317,52 +316,59 @@ class NetworkSegmenterTool(QObject):
                 pydevd.settrace('localhost', port=53100, stdoutToServer=True, stderrToServer=True, suspend=False)
             ret = None
             if self.settings:
+                # segmenting settings
+                layer_name = self.settings['input']
+                unlinks_layer_name = self.settings['unlinks']
+                # project settings
+                layer = getLayerByName(layer_name)
+                unlinks_layer = getLayerByName(unlinks_layer_name)
+
+                flds = getQFields(layer)
+                explodedGraph = segmentTool(flds)
+
+                if explodedGraph.killed is True: return
+
+                step = 30 / float(layer.featureCount()) # TODO: fix if empty
+                explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+
                 try:
-                    # segmenting settings
-                    layer_name = self.settings['input']
-                    unlinks_layer_name = self.settings['unlinks']
-                    # project settings
-                    layer = getLayerByName(layer_name)
-                    if unlinks_layer_name:
-                        unlinks_layer = getLayerByName(unlinks_layer_name)
-
-                    flds = getQFields(layer)
-                    explodedGraph = segmentTool(flds)
-
-                    if unlinks_layer_name:
-                        explodedGraph.prepare_unlinks(unlinks_layer, 0) #todo buffer_threshold
-
-                    if self.segm_killed is True or explodedGraph.killed is True: return
-
-                    step = 30 / self.layer.featureCount()
-                    explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
-
-                    explodedGraph.add_edges(layer)
-
-                    self.segm_progress.emit(30)
-
-                    self.total = 30
-                    step = 65/ max(self.explodedGraph.sEdges.keys())
-                    explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
-
-                    segments, breakages = self.explodedGraph.break_features(self.settings['stub_ratio'])
-
-                    if self.segm_killed is True or explodedGraph.killed is True: return
-
-                    fields = self.explodedGraph.sEdgesFields
-
-                    # todo errors_list = [[k, [[k], [v[0]]], v[1]] for k, v in self.br.errors_features.items()]
-
-                    #if is_debug:
-                    print "survived!"
-                    self.segm_progress.emit(100)
-                    # return cleaned data, errors and unlinks
-                    ret = ((segments, fields), (breakages, breakages_fields))
-
+                    explodedGraph.addedges(layer)
                 except Exception, e:
+                    self.error.emit(explodedGraph.er, explodedGraph.trcb)
+
+                self.segm_progress.emit(100)
+
+                self.total = 30
+                if len(explodedGraph.sEdges) > 0:
+                    num_expl_feat = max(explodedGraph.sEdges.keys())
+                else:
+                    num_expl_feat = 1
+                step = 65 / float(num_expl_feat) #fix division by 0
+
+                # TODO? explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+
+                #try:
+                segments, breakages = explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
+
+                if self.segm_killed is True or explodedGraph.killed is True: return
+                fields = explodedGraph.sEdgesFields
+                # if is_debug:
+                print "survived!"
+                self.segm_progress.emit(95)
+                # return cleaned data, errors and unlinks
+                #segments = []
+                ret = ((segments, fields),)  # todo breakages_fields (breakages, None)
+                #except Exception, e:
+                #    print explodedGraph.er, 'error graph'
+                #    if explodedGraph.er:
+                #        self.error.emit(explodedGraph.er, explodedGraph.trcb)
+                #    else:
+                #        self.error.emit(e, traceback.format_exc())
+                #    ret = ()
+
+                #except Exception, e:
                     # forward the exception upstream
-                    # print 'exception'
-                    self.error.emit(e, traceback.format_exc())
+                #    self.error.emit(e, traceback.format_exc())
 
             self.finished.emit(ret)
 
