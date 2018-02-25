@@ -204,7 +204,6 @@ class NetworkSegmenterTool(QObject):
     def segmentingFinished(self, ret):
         #if is_debug:
         print 'trying to finish'
-        print 'set2', self.settings
         # get segmenting settings
         layer_name = self.settings['input']
         path = self.settings['output']
@@ -232,7 +231,6 @@ class NetworkSegmenterTool(QObject):
                 final.updateExtents()
             # create unlinks layer
             if self.settings['breakages']:
-                print 't', type(ret[1][0][0])
                 break_Points = to_shp(None, ret[1][0], ret[1][1], crs, 'break points', encoding, 0)
                 if break_Points:
                     QgsMapLayerRegistry.instance().addMapLayer(break_Points)
