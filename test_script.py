@@ -1,13 +1,13 @@
 execfile(u'/Users/joe/NetworkSegmenter/sGraph/segment_tools.py'.encode('utf-8'))
 execfile(u'/Users/joe/NetworkSegmenter/sGraph/utilityFunctions.py'.encode('utf-8'))
 
-#execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/sGraph/segment_tools.py'.encode('mbcs'))
-#execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/sGraph/utilityFunctions.py'.encode('mbcs'))
-layer_name = 'axial_map_m25'
+execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/sGraph/segment_tools.py'.encode('mbcs'))
+execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/sGraph/utilityFunctions.py'.encode('mbcs'))
+layer_name = 'axial_map_m25_small'
 
 import datetime
 
-layer_name = 'invalid'
+#layer_name = 'invalid'
 unlinks_layer_name = 'unlinks'
 path = None
 layer = getLayerByName(layer_name)

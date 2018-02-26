@@ -1,6 +1,6 @@
 
 # general imports
-from qgis.core import QgsFeature, QgsGeometry, QgsSpatialIndex, QgsPoint, QgsVectorFileWriter, QgsField
+from qgis.core import QgsFeature, QgsGeometry, QgsSpatialIndex, QgsPoint, QgsVectorFileWriter, QgsField, QgsDistanceArea
 from PyQt4.QtCore import QObject, pyqtSignal, QVariant, pyqtSlot
 
 import traceback
@@ -20,13 +20,10 @@ class sEdge(QObject):
         self.original_id = original_id
         self.geom = geom
         self.attrs = attrs
+        self.breakages = []
 
     def get_startnode(self):
         return self.geom.asPolyline()[0]
-
-    def get_startnode_point(self):
-        startnd = self.get_startnode()
-        return QgsGeometry.fromPoint(QgsPoint(startnd[0], startnd[1]))
 
     def get_endnode(self):
         return self.geom.asPolyline()[-1]
@@ -50,7 +47,7 @@ class segmentTool(QObject):
     #TODO:
     def __init__(self, sEdgesFields):
         QObject.__init__(self)
-        self.sNodesMemory ={} # xy: connectivity
+        self.sNodesMemory = {} # xy: connectivity
         self.sEdges = {}  # id: sEdge object
         # TODO: clean sEdgesFields from e_fid and original_id
         self.sEdgesFields = sEdgesFields + [QgsField(i[0], i[1]) for i in [('e_fid', QVariant.Int),
@@ -59,6 +56,7 @@ class segmentTool(QObject):
         self.spIndex = QgsSpatialIndex()
 
         self.breakagescount = 0
+        self.breakages = []
         self.breakagesFields = [QgsField('id', QVariant.Int)]
 
     def addedges(self, layer):
@@ -90,7 +88,7 @@ class segmentTool(QObject):
                         polyline = multipart.asPolyline()
                         for i, segm in enumerate(polyline[1:]):
                             new_key_count += 1
-                            new_geom = QgsGeometry.fromPolyline([QgsPoint(polyline[i][0], polyline[i][1]), QgsPoint(segm[0], segm[1])])
+                            new_geom = QgsGeometry.fromPolyline([polyline[i], segm])
                             feat = feat_from_geom_id(new_geom, new_key_count)
                             self.spIndex.insertFeature(feat)
                             f_attrs['e_fid'] = new_key_count
@@ -114,7 +112,7 @@ class segmentTool(QObject):
                     # explode
                     polyline = f_geom.asPolyline()
                     for i, segm in enumerate(polyline[1:]):
-                        new_geom = QgsGeometry.fromPolyline([QgsPoint(polyline[i][0], polyline[i][1]), QgsPoint(segm[0], segm[1])])
+                        new_geom = QgsGeometry.fromPolyline([polyline[i], segm])
 
                         new_key_count += 1
                         feat = feat_from_geom_id(new_geom, new_key_count)
@@ -150,6 +148,38 @@ class segmentTool(QObject):
                 self.unlinks[inter_lines[0]].append(inter_lines[0])
         return
 
+    def get_breakages(self, f_geom, e_fid, unlinks_layer, getBreakPoints):
+
+        gids = self.spIndex.intersects(f_geom.boundingBox())
+        crossing_points = []
+
+        if self.killed is True:
+            return
+
+        startpntgeom = QgsGeometry.fromPoint(f_geom.asPolyline()[0])
+        # crossing lines
+        # exclude unlinks
+        for gid in gids:
+            if f_geom.crosses(self.sEdges[gid].geom)or f_geom.touches(self.sEdges[gid].geom):
+                if unlinks_layer and gid in self.unlinks[e_fid]:
+                    pass
+                else:
+                    point = f_geom.intersection(self.sEdges[gid].geom)
+                    if point.wkbType() == 4:
+                        for p in point.asGeometryCollection():
+                            crossing_points.append(p)
+                    elif point.wkbType() == 1:
+                        crossing_points.append(point)
+
+        crossing_points.sort(key=lambda x:f_geom.distance(startpntgeom))
+
+        if getBreakPoints:
+            # not duplicates TODO?
+            # TODO: only geom, or plus line 1 & line 2
+            self.breakages += crossing_points
+
+        return crossing_points
+
     def break_features(self, stub_ratio, getBreakPoints, unlinks_layer, buffer_threshold):
 
         if unlinks_layer:
@@ -159,39 +189,17 @@ class segmentTool(QObject):
         segm_id = 0
 
         segments = []
-        breakPoints = []
 
         for sedge in self.sEdges.values():
 
-            if self.killed is True:
-                break
-
-            f_geom = sedge.geom
-
-            # intersecting lines
-            gids = self.spIndex.intersects(f_geom.boundingBox())
-
-            # crossing lines
-            # exclude unlinks
-            if unlinks_layer:
-                gids = [gid for gid in gids if
-                        f_geom.crosses(self.sEdges[gid].geom) and gid not in self.unlinks[sedge.e_fid]]
-            else:
-                gids = [gid for gid in gids if
-                        f_geom.crosses(self.sEdges[gid].geom)]
-            crossing_points = []
-            startpntgeom = sedge.get_startnode_point()
-            for gid in gids:
-                point = f_geom.intersection(self.sEdges[gid].geom)
-                if point.wkbType() == 4:
-                    for p in point.asGeometryCollection():
-                        crossing_points.append((p, p.distance(startpntgeom)))
-                elif point.wkbType() == 1:
-                    crossing_points.append((point, point.distance(startpntgeom)))
-
+            if self.killed is True:  break
             self.progress.emit((60 * f_count / max(self.sEdges.keys())) + 30)
             f_count += 1
 
+            f_geom = sedge.geom
+            crossing_points = self.get_breakages(f_geom, sedge.e_fid, unlinks_layer, getBreakPoints)
+
+            # if no crossing points
             if len(crossing_points) == 0:
                 # new_feat
                 segm_id += 1
@@ -201,30 +209,26 @@ class segmentTool(QObject):
                 new_attrs['e_fid'] = segm_id
                 segments.append(sEdge(segm_id, sedge.geom, new_attrs, sedge.original_id))
             else:
+                crossing_points = [sedge.get_startnode()] + \
+                                          [i.asPoint() for i in crossing_points] + \
+                                          [sedge.get_endnode()]
 
-                crossing_points_ordered = sorted(crossing_points, key=lambda tup: tup[1])
-                crossing_points_ordered = [i[0] for i in crossing_points_ordered]
-                if getBreakPoints:
-                    # not duplicates TODO?
-                    # TODO: only geom, or plus line 1 & line 2
-                    breakPoints += crossing_points_ordered
-                crossing_points_ordered = [i.asPoint() for i in crossing_points_ordered]
-                crossing_points_ordered = [sedge.get_startnode()] + crossing_points_ordered + [sedge.get_endnode()]
-                for i, cross_point in enumerate(crossing_points_ordered[1:]):
+                for i, cross_point in enumerate(crossing_points[1:]):
                     include = True
-                    new_geom = QgsGeometry.fromPolyline([crossing_points_ordered[i], cross_point])
+                    new_geom = QgsGeometry.fromPolyline([crossing_points[i], cross_point])
                     if stub_ratio:
+                        max_stub_length = (stub_ratio/float(100))*sedge.geom.length()
                         if i == 0:
                             startnode = sedge.get_startnode()
                             # find if sharing vertex with intersecting lines
                             if self.sNodesMemory[(startnode[0], startnode[1])] == 1:
-                                if new_geom.length() / sedge.geom.length() <= (stub_ratio/float(100)):
+                                if new_geom.length() <= max_stub_length:
                                     include = False
-                        elif i == len(crossing_points_ordered) - 2:
+                        elif i == len(crossing_points) - 2:
                             endnode = sedge.get_endnode()
                             # find if sharing vertex with intersecting lines
                             if self.sNodesMemory[(endnode[0], endnode[1])] == 1:
-                                if new_geom.length() / sedge.geom.length() <= (stub_ratio/float(100)):
+                                if new_geom.length() <= max_stub_length:
                                     include = False
                     if include:
                         # new_feat
@@ -234,8 +238,8 @@ class segmentTool(QObject):
                         segm_sedge.attrs['original_id'] = segm_sedge.original_id
                         segments.append(segm_sedge)
 
-        #print 'br', breakPoints
-        return segments, breakPoints
+        return segments, self.breakages
 
     def kill(self):
         self.killed = True
+
