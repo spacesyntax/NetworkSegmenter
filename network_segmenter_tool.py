@@ -323,39 +323,39 @@ class NetworkSegmenterTool(QObject):
                 unlinks_layer = getLayerByName(unlinks_layer_name)
 
                 flds = getQFields(layer)
-                explodedGraph = segmentTool(flds)
+                self.explodedGraph = segmentTool(flds)
 
-                if explodedGraph.killed is True: return
+                if self.explodedGraph.killed is True: return
 
                 step = 30 / float(layer.featureCount()) # TODO: fix if empty
-                explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+                self.explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
                 try:
-                    explodedGraph.addedges(layer)
+                    self.explodedGraph.addedges(layer)
                 except Exception, e:
-                    self.error.emit(explodedGraph.er, explodedGraph.trcb)
+                    self.error.emit(self.explodedGraph.er, self.explodedGraph.trcb)
 
-                print 'len expl', len(explodedGraph.sEdges)
+                print 'len expl', len(self.explodedGraph.sEdges)
 
                 self.segm_progress.emit(30)
                 self.total = 30
-                if len(explodedGraph.sEdges) > 0:
-                    num_expl_feat = max(explodedGraph.sEdges.keys())
+                if len(self.explodedGraph.sEdges) > 0:
+                    num_expl_feat = max(self.explodedGraph.sEdges.keys())
                 else:
                     num_expl_feat = 1
                 step = 65 / float(num_expl_feat) #fix division by 0
 
-                explodedGraph.progress.disconnect()
-                explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+                self.explodedGraph.progress.disconnect()
+                self.explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
-                segments, breakages = explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
+                segments, breakages = self.explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
 
                 print 'len segm', len(segments)
-                explodedGraph.progress.disconnect()
+                self.explodedGraph.progress.disconnect()
 
-                if self.segm_killed is True or explodedGraph.killed is True: return
-                fields = explodedGraph.sEdgesFields
-                breakages_fields = explodedGraph.breakagesFields
+                if self.segm_killed is True or self.explodedGraph.killed is True: return
+                fields = self.explodedGraph.sEdgesFields
+                breakages_fields = self.explodedGraph.breakagesFields
                 # if is_debug:
                 print "survived!"
                 print datetime.datetime.now().time()

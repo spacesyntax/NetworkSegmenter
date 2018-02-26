@@ -104,11 +104,11 @@ class segmentTool(QObject):
                                     self.sNodesMemory[(i[0], i[1])] = 1
                             self.sEdges[new_key_count] = expl_sedge
                 # exclude points
-                elif geom_type == 1:
-                    pass
+                #elif geom_type == 1:
+                #    pass
                 # exclude invalids
-                elif not f_geom.isGeosValid():
-                    pass
+                #elif not f_geom.isGeosValid():
+                #    pass
                 # linestrings
                 elif geom_type == 2:
                     # explode
@@ -130,7 +130,7 @@ class segmentTool(QObject):
                         self.sEdges[new_key_count] = expl_sedge
                         self.unlinks[new_key_count] = []
         except Exception, e:
-            self.error.emit(e, traceback.format_exc()) #TODO: error
+            self.error.emit(e, traceback.format_exc()) # TODO: error
         return
 
     def prepare_unlinks(self, unlinks_layer, buffer_threshold):
