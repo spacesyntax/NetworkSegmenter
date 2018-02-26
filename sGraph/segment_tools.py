@@ -75,7 +75,6 @@ class segmentTool(QObject):
                     break
 
                 f_geom = f.geometry()
-
                 f_attrs = {fld.name(): f[fld.name()] for fld in self.sEdgesFields if fld.name() not in ['e_fid', 'original_id']}
 
                 # drop 3rd dimension
@@ -162,80 +161,80 @@ class segmentTool(QObject):
         segments = []
         breakPoints = []
 
-        try:
-            for sedge in self.sEdges.values():
+        for sedge in self.sEdges.values():
 
-                if self.killed is True:
-                    break
+            if self.killed is True:
+                break
 
-                f_geom = sedge.geom
+            f_geom = sedge.geom
 
-                # intersecting lines
-                gids = self.spIndex.intersects(f_geom.boundingBox())
+            # intersecting lines
+            gids = self.spIndex.intersects(f_geom.boundingBox())
 
-                # crossing lines
-                # exclude unlinks
-                gids = [gid for gid in gids if f_geom.crosses(self.sEdges[gid].geom) and gid not in self.unlinks[sedge.e_fid] ]
-                crossing_points = []
-                startpntgeom = sedge.get_startnode_point()
-                for gid in gids:
-                    point = f_geom.intersection(self.sEdges[gid].geom)
-                    if point.wkbType() == 4:
-                        for p in point.asGeometryCollection():
-                            crossing_points.append((p, p.distance(startpntgeom)))
-                    elif point.wkbType() == 1:
-                        crossing_points.append((point, point.distance(startpntgeom)))
+            # crossing lines
+            # exclude unlinks
+            if unlinks_layer:
+                gids = [gid for gid in gids if
+                        f_geom.crosses(self.sEdges[gid].geom) and gid not in self.unlinks[sedge.e_fid]]
+            else:
+                gids = [gid for gid in gids if
+                        f_geom.crosses(self.sEdges[gid].geom)]
+            crossing_points = []
+            startpntgeom = sedge.get_startnode_point()
+            for gid in gids:
+                point = f_geom.intersection(self.sEdges[gid].geom)
+                if point.wkbType() == 4:
+                    for p in point.asGeometryCollection():
+                        crossing_points.append((p, p.distance(startpntgeom)))
+                elif point.wkbType() == 1:
+                    crossing_points.append((point, point.distance(startpntgeom)))
 
-                self.progress.emit((60 * f_count / max(self.sEdges.keys())) + 30)
-                f_count += 1
+            self.progress.emit((60 * f_count / max(self.sEdges.keys())) + 30)
+            f_count += 1
 
-                if len(crossing_points) == 0:
-                    # new_feat
-                    segm_id += 1
-                    # add new segment id
-                    sedge.e_fid = segm_id
-                    new_attrs = dict(sedge.attrs)
-                    new_attrs['e_fid'] = segm_id
-                    segments.append(sEdge(segm_id, sedge.geom, new_attrs, sedge.original_id))
-                else:
+            if len(crossing_points) == 0:
+                # new_feat
+                segm_id += 1
+                # add new segment id
+                sedge.e_fid = segm_id
+                new_attrs = dict(sedge.attrs)
+                new_attrs['e_fid'] = segm_id
+                segments.append(sEdge(segm_id, sedge.geom, new_attrs, sedge.original_id))
+            else:
 
-                    crossing_points_ordered = sorted(crossing_points, key=lambda tup: tup[1])
-                    crossing_points_ordered = [i[0] for i in crossing_points_ordered]
-                    if getBreakPoints:
-                        # not duplicates TODO?
-                        # TODO: only geom, or plus line 1 & line 2
-                        breakPoints += crossing_points_ordered
-                    crossing_points_ordered = [i.asPoint() for i in crossing_points_ordered]
-                    crossing_points_ordered = [sedge.get_startnode()] + crossing_points_ordered + [sedge.get_endnode()]
-                    for i, cross_point in enumerate(crossing_points_ordered[1:]):
-                        include = True
-                        new_geom = QgsGeometry.fromPolyline([crossing_points_ordered[i], cross_point])
-                        if stub_ratio:
-                            if i == 0:
-                                startnode = sedge.get_startnode()
-                                # find if sharing vertex with intersecting lines
-                                if self.sNodesMemory[(startnode[0], startnode[1])] == 1:
-                                    if new_geom.length() / sedge.geom.length() <= (stub_ratio/float(100)):
-                                        include = False
-                            elif i == len(crossing_points_ordered) - 2:
-                                endnode = sedge.get_endnode()
-                                # find if sharing vertex with intersecting lines
-                                if self.sNodesMemory[(endnode[0], endnode[1])] == 1:
-                                    if new_geom.length() / sedge.geom.length() <= (stub_ratio/float(100)):
-                                        include = False
-                        if include:
-                            # new_feat
-                            segm_id += 1
-                            segm_sedge = sEdge(segm_id, new_geom, sedge.attrs, sedge.original_id)
-                            segm_sedge.attrs['e_fid'] = segm_id
-                            segm_sedge.attrs['original_id'] = segm_sedge.original_id
-                            segments.append(segm_sedge)
+                crossing_points_ordered = sorted(crossing_points, key=lambda tup: tup[1])
+                crossing_points_ordered = [i[0] for i in crossing_points_ordered]
+                if getBreakPoints:
+                    # not duplicates TODO?
+                    # TODO: only geom, or plus line 1 & line 2
+                    breakPoints += crossing_points_ordered
+                crossing_points_ordered = [i.asPoint() for i in crossing_points_ordered]
+                crossing_points_ordered = [sedge.get_startnode()] + crossing_points_ordered + [sedge.get_endnode()]
+                for i, cross_point in enumerate(crossing_points_ordered[1:]):
+                    include = True
+                    new_geom = QgsGeometry.fromPolyline([crossing_points_ordered[i], cross_point])
+                    if stub_ratio:
+                        if i == 0:
+                            startnode = sedge.get_startnode()
+                            # find if sharing vertex with intersecting lines
+                            if self.sNodesMemory[(startnode[0], startnode[1])] == 1:
+                                if new_geom.length() / sedge.geom.length() <= (stub_ratio/float(100)):
+                                    include = False
+                        elif i == len(crossing_points_ordered) - 2:
+                            endnode = sedge.get_endnode()
+                            # find if sharing vertex with intersecting lines
+                            if self.sNodesMemory[(endnode[0], endnode[1])] == 1:
+                                if new_geom.length() / sedge.geom.length() <= (stub_ratio/float(100)):
+                                    include = False
+                    if include:
+                        # new_feat
+                        segm_id += 1
+                        segm_sedge = sEdge(segm_id, new_geom, sedge.attrs, sedge.original_id)
+                        segm_sedge.attrs['e_fid'] = segm_id
+                        segm_sedge.attrs['original_id'] = segm_sedge.original_id
+                        segments.append(segm_sedge)
 
-                print breakPoints
-
-        except Exception, e:
-            self.error.emit(e, traceback.format_exc())
-
+        #print 'br', breakPoints
         return segments, breakPoints
 
     def kill(self):

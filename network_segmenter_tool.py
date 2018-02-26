@@ -27,7 +27,7 @@ from qgis.gui import *
 from qgis.utils import *
 
 #import db_manager.db_plugins.postgis.connector as con
-import traceback
+import datetime
 
 # Initialize Qt resources from file resources.py
 import resources
@@ -172,7 +172,6 @@ class NetworkSegmenterTool(QObject):
         print 'started'
         self.dlg.segmentingProgress.reset()
         self.settings = self.dlg.get_settings()
-        print self.settings
         print 'set', self.settings
         if self.settings['output_type'] == 'postgis':
             db_settings = self.dlg.get_dbsettings()
@@ -315,6 +314,7 @@ class NetworkSegmenterTool(QObject):
                 pydevd.settrace('localhost', port=53100, stdoutToServer=True, stderrToServer=True, suspend=False)
             ret = None
             if self.settings:
+                print datetime.datetime.now().time()
                 # segmenting settings
                 layer_name = self.settings['input']
                 unlinks_layer_name = self.settings['unlinks']
@@ -335,8 +335,9 @@ class NetworkSegmenterTool(QObject):
                 except Exception, e:
                     self.error.emit(explodedGraph.er, explodedGraph.trcb)
 
-                self.segm_progress.emit(100)
+                print 'len expl', len(explodedGraph.sEdges)
 
+                self.segm_progress.emit(30)
                 self.total = 30
                 if len(explodedGraph.sEdges) > 0:
                     num_expl_feat = max(explodedGraph.sEdges.keys())
@@ -344,15 +345,20 @@ class NetworkSegmenterTool(QObject):
                     num_expl_feat = 1
                 step = 65 / float(num_expl_feat) #fix division by 0
 
+                explodedGraph.progress.disconnect()
                 explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
                 segments, breakages = explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
+
+                print 'len segm', len(segments)
+                explodedGraph.progress.disconnect()
 
                 if self.segm_killed is True or explodedGraph.killed is True: return
                 fields = explodedGraph.sEdgesFields
                 breakages_fields = explodedGraph.breakagesFields
                 # if is_debug:
                 print "survived!"
+                print datetime.datetime.now().time()
                 self.segm_progress.emit(95)
                 # return cleaned data, errors and unlinks
                 ret = ((segments, fields), (breakages, breakages_fields))
