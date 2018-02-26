@@ -1,6 +1,6 @@
 # general imports
 from qgis.core import QgsMapLayerRegistry, QgsVectorFileWriter, QgsVectorLayer, QgsFeature, QgsGeometry,QgsFields, QgsDataSourceURI, QgsField
-
+from PyQt4.QtCore import QObject
 import psycopg2
 from psycopg2.extensions import AsIs
 
@@ -139,3 +139,27 @@ def getPostgisSchemas(connstring, commit=False):
             schemas.append(schema[0])
     #return the result even if empty
     return sorted(schemas)
+
+class sEdge(QObject):
+
+    def __init__(self, e_fid, geom, attrs, original_id):
+        QObject.__init__(self)
+        self.e_fid = e_fid
+        self.original_id = original_id
+        self.geom = geom
+        self.attrs = attrs
+        self.breakages = []
+
+    def get_startnode(self):
+        return self.geom.asPolyline()[0]
+
+    def get_endnode(self):
+        return self.geom.asPolyline()[-1]
+
+    def qgsFeat(self):
+        edge_feat = QgsFeature()
+        edge_feat.setGeometry(self.geom)
+        edge_feat.setFeatureId(self.e_fid)
+        edge_feat.setAttributes([attr_values for attr_name, attr_values in self.attrs.items()])
+        return edge_feat
+

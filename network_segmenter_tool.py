@@ -350,7 +350,6 @@ class NetworkSegmenterTool(QObject):
 
                 segments, breakages = self.explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
 
-                print 'len segm', len(segments)
                 self.explodedGraph.progress.disconnect()
 
                 if self.segm_killed is True or self.explodedGraph.killed is True: return
