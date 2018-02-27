@@ -35,37 +35,40 @@ class segmentTool(QObject):
     def addedges(self, layer):
 
         new_key_count = 0
-        f_count = 1
+        #f_count = 1
         for f in layer.getFeatures():
 
-            self.progress.emit(30 * f_count / layer.featureCount())
-            f_count += 1
-
-            if self.killed is True: break
+            #self.progress.emit(30 * f_count / layer.featureCount())
+            #f_count += 1
+            #if self.killed is True: break
 
             # geometry and attributes
             f_geom = f.geometry()
-            f_geom.geometry().dropZValue() # drop 3rd dimension # if f_geom.geometry().is3D(): # geom_type not in [5, 2, 1]
+            # f_geom.geometry().dropZValue() # drop 3rd dimension # if f_geom.geometry().is3D(): # geom_type not in [5, 2, 1]
             f_attrs = f.attributes()
-            f_id = f.id()
+            # f_id = f.id()
 
             # explode(multi)linestrings
             # exclude points & invalids and other
             for segment in segm_from_pl_iter(f_geom):
                 new_key_count += 1
-                segm_feat = getQgsFeat(segment, f_attrs + [f_id, new_key_count], new_key_count)
+                segm_feat = QgsFeature()
+                segm_feat.setFeatureId(new_key_count)
+                segm_feat.setGeometry(segment)
+                segm_feat.setAttributes(f_attrs)
                 self.spIndex.insertFeature(segm_feat)
+
                 self.unlinks[new_key_count] = []
                 self.explodedFeatures[new_key_count] = segm_feat
 
+                segm_pl = segment.asPolyline()
+                for i in (segm_pl[0], segm_pl[-1]):
+                    try:
+                        self.sNodesMemory[(i[0], i[1])] += 1
+                    except KeyError:
+                        self.sNodesMemory[(i[0], i[1])] = 1
 
-                #for i in (expl_sedge.get_startnode(), expl_sedge.get_endnode()):
-                #    try:
-                #        self.sNodesMemory[(i[0], i[1])] += 1
-                #    except KeyError:
-                #        self.sNodesMemory[(i[0], i[1])] = 1
-
-        self.sEdgesFields += [QgsField(i[0], i[1]) for i in [('e_fid', QVariant.Int), ('original_id', QVariant.String)]]
+        # TODO: #self.sEdgesFields += [QgsField(i[0], i[1]) for i in [('e_fid', QVariant.Int), ('original_id', QVariant.String)]]
         return
 
     def prepare_unlinks(self, unlinks_layer, buffer_threshold):
@@ -126,7 +129,7 @@ class segmentTool(QObject):
         segm_id = 0
         segments = []
 
-        for sedge in self.sEdges.values():
+        for sedge in self.explodedFeatures.values():
 
             if self.killed is True:  break
             self.progress.emit((60 * f_count / max(self.sEdges.keys())) + 30)

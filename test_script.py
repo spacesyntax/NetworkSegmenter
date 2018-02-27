@@ -25,6 +25,7 @@ explodedGraph.addedges(layer)
 end = time.time()
 print 'Graph build', end - start
 
+print 1
 
 
 print datetime.datetime.now().time()
