@@ -1,9 +1,7 @@
 
 # general imports
-from qgis.core import QgsFeature, QgsGeometry, QgsSpatialIndex, QgsPoint, QgsVectorFileWriter, QgsField, QgsDistanceArea
-from PyQt4.QtCore import QObject, pyqtSignal, QVariant, pyqtSlot
-
-import traceback
+from PyQt4.QtCore import QObject, pyqtSignal, QVariant
+from qgis.core import QgsGeometry, QgsSpatialIndex, QgsField
 
 # plugin module imports
 try:
@@ -52,10 +50,9 @@ class segmentTool(QObject):
                 f_attrs[fld_name] = f[fld_name]
 
             # drop 3rd dimension
-            geom_type = f_geom.wkbType()
-            if geom_type not in [5, 2, 1] and f_geom.geometry().is3D():
+            if f_geom.geometry().is3D(): # geom_type not in [5, 2, 1]
                 f_geom.geometry().dropZValue()
-                geom_type = f_geom.wkbType()
+            geom_type = f_geom.wkbType()
 
             # multilinestrings
             if geom_type == 5:
@@ -164,18 +161,20 @@ class segmentTool(QObject):
             if self.killed is True:  break
             self.progress.emit((60 * f_count / max(self.sEdges.keys())) + 30)
             f_count += 1
-
+            print 'start brkgs'
             f_geom = sedge.geom
             crossing_points = self.get_breakages(f_geom, sedge.e_fid, unlinks_layer, getBreakPoints)
+            print 'done brkgs'
 
             # if no crossing points
             crossing_points = [sedge.get_startnode()] + \
                                           [i.asPoint() for i in crossing_points] + \
                                           [sedge.get_endnode()]
-
+            print 'start segms'
             for i, cross_point in enumerate(crossing_points[1:]):
                 include = True
                 new_geom = QgsGeometry.fromPolyline([crossing_points[i], cross_point])
+                print 'stubs'
                 if stub_ratio:
                     max_stub_length = (stub_ratio/float(100))*sedge.geom.length()
                     if i == 0:
@@ -191,10 +190,12 @@ class segmentTool(QObject):
                             if new_geom.length() <= max_stub_length:
                                 include = False
                 if include:
+                    print 'include'
                     # new_feat
                     segm_id += 1
                     segm_sedge = sEdge(segm_id, new_geom, sedge.attrs, sedge.original_id)
                     segm_sedge.attrs['original_id'] = segm_sedge.original_id
+
                     segments.append(segm_sedge)
 
         return segments, self.breakages

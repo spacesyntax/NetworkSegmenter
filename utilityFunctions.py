@@ -19,7 +19,7 @@ def getLayerByName(name):
 
 def feat_from_geom_id(geom, id):
     feat = QgsFeature()
-    feat.initAttributes(1)
+    # feat.initAttributes(1)
     feat.setAttributes([id])
     feat.setFeatureId(id)
     feat.setGeometry(geom)

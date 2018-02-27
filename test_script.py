@@ -1,8 +1,8 @@
-execfile(u'/Users/joe/NetworkSegmenter/sGraph/segment_tools.py'.encode('utf-8'))
-execfile(u'/Users/joe/NetworkSegmenter/sGraph/utilityFunctions.py'.encode('utf-8'))
+execfile(u'/Users/joe/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
+execfile(u'/Users/joe/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
 
-execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/sGraph/segment_tools.py'.encode('mbcs'))
-execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/sGraph/utilityFunctions.py'.encode('mbcs'))
+#execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/sGraph/segment_tools.py'.encode('mbcs'))
+#execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/sGraph/utilityFunctions.py'.encode('mbcs'))
 layer_name = 'axial_map_m25_small'
 
 import datetime
@@ -26,8 +26,8 @@ print datetime.datetime.now().time()
 segments, breakages = explodedGraph.break_features(40, True, unlinks_layer, None) #todo test buffer_threshold
 print datetime.datetime.now().time()
 
-expl = to_shp(path, [sedge.qgsFeat() for sedge in explodedGraph.sEdges.values()], explodedGraph.sEdgesFields, crs, 'expl', encoding, geom_type)
-QgsMapLayerRegistry.instance().addMapLayer(expl)
+#expl = to_shp(path, [sedge.qgsFeat() for sedge in explodedGraph.sEdges.values()], explodedGraph.sEdgesFields, crs, 'expl', encoding, geom_type)
+#QgsMapLayerRegistry.instance().addMapLayer(expl)
 
 segmented = to_shp(path, [segm.qgsFeat() for segm in segments], explodedGraph.sEdgesFields, crs, 'segmented', encoding, geom_type)
 QgsMapLayerRegistry.instance().addMapLayer(segmented)

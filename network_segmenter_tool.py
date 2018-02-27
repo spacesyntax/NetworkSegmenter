@@ -20,23 +20,15 @@
  *                                                                         *
  ***************************************************************************/
 """
-from PyQt4.QtCore import Qt, QThread, QSettings
+import datetime
 
+from PyQt4.QtCore import QThread, QSettings
 from qgis.core import *
 from qgis.gui import *
 from qgis.utils import *
 
-#import db_manager.db_plugins.postgis.connector as con
-import datetime
-
-# Initialize Qt resources from file resources.py
-import resources
-# the dialog modules
 from network_segmenter_dialog import NetworkSegmenterDialog
-
-# additional modules
-from sGraph.segment_tools import *  # better give these a name to make it explicit to which module the methods belong
-from sGraph.utilityFunctions import *
+from segment_tools import *  # better give these a name to make it explicit to which module the methods belong
 
 # Import the debug library - required for the cleaning class in separate thread
 # set is_debug to False in release version
@@ -348,19 +340,18 @@ class NetworkSegmenterTool(QObject):
                 self.explodedGraph.progress.disconnect()
                 self.explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
-                segments, breakages = self.explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
+                segments_iter, breakages = self.explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
 
                 self.explodedGraph.progress.disconnect()
 
                 if self.segm_killed is True or self.explodedGraph.killed is True: return
                 fields = self.explodedGraph.sEdgesFields
-                breakages_fields = self.explodedGraph.breakagesFields
                 # if is_debug:
                 print "survived!"
                 print datetime.datetime.now().time()
                 self.segm_progress.emit(95)
                 # return cleaned data, errors and unlinks
-                ret = ((segments, fields), (breakages, breakages_fields))
+                ret = ((segments_iter, fields), (breakages, [QgsField('id',QVariant.Int)]))
 
                 #except Exception, e:
                     # forward the exception upstream
