@@ -21,15 +21,16 @@ class segmentTool(QObject):
     def __init__(self, sEdgesFields):
         QObject.__init__(self)
         self.sNodesMemory = {} # xy: connectivity
-        self.sEdges = {}  # id: sEdge object
+        self.exploded = {}  # id: sEdge object
         # TODO: clean sEdgesFields from e_fid and original_id
         self.sEdgesFields = sEdgesFields # list of QGgsfield objects
         self.unlinks = {}
         self.spIndex = QgsSpatialIndex()
 
+        self.explodedFeatures = {}
+
         self.breakagescount = 0
         self.breakages = []
-        self.breakagesFields = [QgsField('id', QVariant.Int)]
 
     def addedges(self, layer):
 
@@ -43,59 +44,29 @@ class segmentTool(QObject):
             if self.killed is True:
                 break
 
+            # geometry and attributes
             f_geom = f.geometry()
-            f_attrs = {}
-            for fld in self.sEdgesFields:
-                fld_name = fld.name()
-                f_attrs[fld_name] = f[fld_name]
+            f_geom.geometry().dropZValue() # drop 3rd dimension # if f_geom.geometry().is3D(): # geom_type not in [5, 2, 1]
+            f_attrs = f.attributes()
+            f_id = f.id()
 
-            # drop 3rd dimension
-            if f_geom.geometry().is3D(): # geom_type not in [5, 2, 1]
-                f_geom.geometry().dropZValue()
-            geom_type = f_geom.wkbType()
-
-            # multilinestrings
-            if geom_type == 5:
-                for multipart in f_geom.asGeometryCollection():
-                    # explode
-                    polyline = multipart.asPolyline()
-                    for i, segm in enumerate(polyline[1:]):
-                        new_key_count += 1
-                        new_geom = QgsGeometry.fromPolyline([polyline[i], segm])
-                        feat = feat_from_geom_id(new_geom, new_key_count)
-                        self.spIndex.insertFeature(feat)
-                        f_attrs['e_fid'] = new_key_count
-                        f_attrs['original_id'] = f.id()
-                        expl_sedge = sEdge(new_key_count, new_geom, f_attrs, f.id())
-                        self.unlinks[new_key_count] = []
-                        for i in (expl_sedge.get_startnode(), expl_sedge.get_endnode()):
-                            try:
-                                self.sNodesMemory[(i[0], i[1])] += 1
-                            except KeyError:
-                                self.sNodesMemory[(i[0], i[1])] = 1
-                        self.sEdges[new_key_count] = expl_sedge
+            # explode(multi)linestrings
             # exclude points & invalids and other
-            elif geom_type == 2:
-                # explode
-                polyline = f_geom.asPolyline()
-                for i, segm in enumerate(polyline[1:]):
-                    new_geom = QgsGeometry.fromPolyline([polyline[i], segm])
+            for segment in segm_from_pl_iter(f_geom):
+                new_key_count += 1
+                segm_feat = getQgsFeat(segment, f_attrs + [f_id, new_key_count], new_key_count)
+                self.spIndex.insertFeature(segm_feat)
+                self.unlinks[new_key_count] = []
+                self.explodedFeatures[new_key_count] = segm_feat
 
-                    new_key_count += 1
-                    feat = feat_from_geom_id(new_geom, new_key_count)
-                    self.spIndex.insertFeature(feat)
-                    f_attrs['e_fid'] = new_key_count
-                    f_attrs['original_id'] = f.id()
-                    expl_sedge = sEdge(new_key_count, new_geom, f_attrs, f.id())
-                    for i in (expl_sedge.get_startnode(), expl_sedge.get_endnode()):
-                        try:
-                            self.sNodesMemory[(i[0], i[1])] += 1
-                        except KeyError:
-                            self.sNodesMemory[(i[0], i[1])] = 1
-                    self.sEdges[new_key_count] = expl_sedge
-                    self.unlinks[new_key_count] = []
-        self.sEdgesFields += [QgsField(i[0], i[1]) for i in [('e_fid', QVariant.Int),
-                                                                           ('original_id', QVariant.String)]]
+
+                #for i in (expl_sedge.get_startnode(), expl_sedge.get_endnode()):
+                #    try:
+                #        self.sNodesMemory[(i[0], i[1])] += 1
+                #    except KeyError:
+                #        self.sNodesMemory[(i[0], i[1])] = 1
+
+        self.sEdgesFields += [QgsField(i[0], i[1]) for i in [('e_fid', QVariant.Int), ('original_id', QVariant.String)]]
         return
 
     def prepare_unlinks(self, unlinks_layer, buffer_threshold):
@@ -161,20 +132,16 @@ class segmentTool(QObject):
             if self.killed is True:  break
             self.progress.emit((60 * f_count / max(self.sEdges.keys())) + 30)
             f_count += 1
-            print 'start brkgs'
             f_geom = sedge.geom
             crossing_points = self.get_breakages(f_geom, sedge.e_fid, unlinks_layer, getBreakPoints)
-            print 'done brkgs'
 
             # if no crossing points
             crossing_points = [sedge.get_startnode()] + \
                                           [i.asPoint() for i in crossing_points] + \
                                           [sedge.get_endnode()]
-            print 'start segms'
             for i, cross_point in enumerate(crossing_points[1:]):
                 include = True
                 new_geom = QgsGeometry.fromPolyline([crossing_points[i], cross_point])
-                print 'stubs'
                 if stub_ratio:
                     max_stub_length = (stub_ratio/float(100))*sedge.geom.length()
                     if i == 0:
@@ -190,7 +157,6 @@ class segmentTool(QObject):
                             if new_geom.length() <= max_stub_length:
                                 include = False
                 if include:
-                    print 'include'
                     # new_feat
                     segm_id += 1
                     segm_sedge = sEdge(segm_id, new_geom, sedge.attrs, sedge.original_id)

@@ -26,6 +26,7 @@ from PyQt4.QtCore import QThread, QSettings
 from qgis.core import *
 from qgis.gui import *
 from qgis.utils import *
+import time
 
 from network_segmenter_dialog import NetworkSegmenterDialog
 from segment_tools import *  # better give these a name to make it explicit to which module the methods belong
@@ -306,7 +307,8 @@ class NetworkSegmenterTool(QObject):
                 pydevd.settrace('localhost', port=53100, stdoutToServer=True, stderrToServer=True, suspend=False)
             ret = None
             if self.settings:
-                print datetime.datetime.now().time()
+                start = time.time()
+                print 'starting at', start
                 # segmenting settings
                 layer_name = self.settings['input']
                 unlinks_layer_name = self.settings['unlinks']
@@ -327,6 +329,9 @@ class NetworkSegmenterTool(QObject):
                 except Exception, e:
                     self.error.emit(self.explodedGraph.er, self.explodedGraph.trcb)
 
+                end = time.time()
+                print 'ending at', end
+                print 'graph build:', (end - start), 'sec'
                 print 'len expl', len(self.explodedGraph.sEdges)
 
                 self.segm_progress.emit(30)
@@ -340,7 +345,17 @@ class NetworkSegmenterTool(QObject):
                 self.explodedGraph.progress.disconnect()
                 self.explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
-                segments_iter, breakages = self.explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
+                start = time.time()
+                print 'starting at', start
+
+                try:
+                    segments, breakages = self.explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
+                except Exception, e:
+                    self.error.emit(e, traceback.format_exc())
+
+                end = time.time()
+                print 'graph segment:', end - start, 'sec'
+                print 'ending at', end
 
                 self.explodedGraph.progress.disconnect()
 
@@ -351,7 +366,7 @@ class NetworkSegmenterTool(QObject):
                 print datetime.datetime.now().time()
                 self.segm_progress.emit(95)
                 # return cleaned data, errors and unlinks
-                ret = ((segments_iter, fields), (breakages, [QgsField('id',QVariant.Int)]))
+                ret = ((segments, fields), (breakages, [QgsField('id',QVariant.Int)]))
 
                 #except Exception, e:
                     # forward the exception upstream

@@ -6,6 +6,9 @@ from psycopg2.extensions import AsIs
 
 # source: ess utility functions
 
+# -------------------------- LAYER HANDLING
+
+
 def getQFields(layer):
     return [QgsField(i.name(), i.type()) for i in layer.dataProvider().fields()]
 
@@ -17,13 +20,55 @@ def getLayerByName(name):
             layer = i
     return layer
 
-def feat_from_geom_id(geom, id):
+# -------------------------- GEOMETRY HANDLING
+
+
+def segm_from_pl_iter(pl_geom):
+    if pl_geom.wkbType() == 5:
+        for pl in pl_geom.asMultiPolyline():
+            for segm_geom in explode_iter(pl):
+                yield segm_geom
+    elif pl_geom.wkbType() == 2:
+        pl = pl_geom.asPolyline()
+        for segm_geom in explode_iter(pl):
+            yield segm_geom
+
+
+def explode_iter(pl):
+    for i in range(len(pl) - 1):
+        yield QgsGeometry.fromPolyline([pl[i], pl[i+1]])
+
+
+def getQgsFeat(geom, attrs, id):
     feat = QgsFeature()
-    # feat.initAttributes(1)
-    feat.setAttributes([id])
+    feat.setAttributes(attrs)
     feat.setFeatureId(id)
     feat.setGeometry(geom)
     return feat
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def to_shp(path, any_features_list, layer_fields, crs, name, encoding, geom_type):
     if path is None:
