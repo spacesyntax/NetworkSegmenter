@@ -38,6 +38,7 @@ class segmentTool(QObject):
 
             self.progress.emit(30 * f_count / layer.featureCount())
             f_count += 1
+
             if self.killed is True: break
 
             # geometry and attributes

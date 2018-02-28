@@ -314,17 +314,17 @@ class NetworkSegmenterTool(QObject):
                 unlinks_layer = getLayerByName(unlinks_layer_name)
 
                 flds = getQFields(layer)
-                explodedGraph = segmentTool(flds)
+                self.explodedGraph = segmentTool(flds)
 
-                if explodedGraph.killed is True: return
+                if self.explodedGraph.killed is True: return
 
                 step = 30 / float(layer.featureCount()) # TODO: fix if empty
-                explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+                self.explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
                 try:
-                    explodedGraph.addedges(layer)
+                    self.explodedGraph.addedges(layer)
                 except Exception, e: # forward the exception upstream
-                    self.error.emit(explodedGraph.er, explodedGraph.trcb)
+                    self.error.emit(e, traceback.format_exc())
 
                 #end = time.time()
                 #print 'graph build:', (end - start), 'sec'
@@ -333,13 +333,13 @@ class NetworkSegmenterTool(QObject):
                 self.total = 30
 
                 try:
-                    num_expl_feat = len(explodedGraph.explodedFeatures)
+                    num_expl_feat = len(self.explodedGraph.explodedFeatures)
                 except ZeroDivisionError:  # fix division by 0
                     num_expl_feat = 1
                 step = 65 / float(num_expl_feat)
 
-                explodedGraph.progress.disconnect()
-                explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+                self.explodedGraph.progress.disconnect()
+                self.explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
                 #start = time.time()
                 #print 'starting at', start
@@ -353,11 +353,11 @@ class NetworkSegmenterTool(QObject):
                 #end = time.time()
                 #print 'graph segment:', end - start, 'sec'
 
-                explodedGraph.progress.disconnect()
+                self.explodedGraph.progress.disconnect()
 
-                if self.segm_killed is True or explodedGraph.killed is True: return
+                if self.segm_killed is True or self.explodedGraph.killed is True: return
 
-                fields = explodedGraph.sEdgesFields
+                fields = self.explodedGraph.sEdgesFields
                 # if is_debug:
                 print "survived!"
 
