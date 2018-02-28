@@ -36,7 +36,7 @@ def segm_from_pl_iter(pl_geom):
 
 def explode_iter(pl):
     for i in range(len(pl) - 1):
-        yield QgsGeometry.fromPolyline([pl[i], pl[i+1]])
+        yield pl[i], pl[i+1]
 
 
 def getQgsFeat(geom, attrs, id):

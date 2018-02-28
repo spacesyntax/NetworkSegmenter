@@ -209,11 +209,9 @@ class NetworkSegmenterTool(QObject):
         try:
             # create clean layer
             if output_type == 'shp':
-                final = to_shp(path, [segm.qgsFeat() for segm in
-                                      ret[0][0]], ret[0][1], crs, 'segmented',  encoding, geom_type)
+                final = to_shp(path, ret[0][0], ret[0][1], crs, 'segmented',  encoding, geom_type)
             elif output_type == 'memory':
-                final = to_shp(None, [segm.qgsFeat() for segm in
-                                      ret[0][0]], ret[0][1], crs, 'segmented',  encoding, geom_type)
+                final = to_shp(None, ret[0][0], ret[0][1], crs, 'segmented',  encoding, geom_type)
             else:
                 final = to_dblayer(self.settings['dbname'], self.settings['user'], self.settings['host'],
                                    self.settings['port'], self.settings['password'], self.settings['schema'],
@@ -307,8 +305,7 @@ class NetworkSegmenterTool(QObject):
                 pydevd.settrace('localhost', port=53100, stdoutToServer=True, stderrToServer=True, suspend=False)
             ret = None
             if self.settings:
-                start = time.time()
-                print 'starting at', start
+                #start = time.time()
                 # segmenting settings
                 layer_name = self.settings['input']
                 unlinks_layer_name = self.settings['unlinks']
@@ -317,60 +314,56 @@ class NetworkSegmenterTool(QObject):
                 unlinks_layer = getLayerByName(unlinks_layer_name)
 
                 flds = getQFields(layer)
-                self.explodedGraph = segmentTool(flds)
+                explodedGraph = segmentTool(flds)
 
-                if self.explodedGraph.killed is True: return
+                if explodedGraph.killed is True: return
 
                 step = 30 / float(layer.featureCount()) # TODO: fix if empty
-                self.explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+                explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
 
                 try:
-                    self.explodedGraph.addedges(layer)
-                except Exception, e:
-                    self.error.emit(self.explodedGraph.er, self.explodedGraph.trcb)
+                    explodedGraph.addedges(layer)
+                except Exception, e: # forward the exception upstream
+                    self.error.emit(explodedGraph.er, explodedGraph.trcb)
 
-                end = time.time()
-                print 'ending at', end
-                print 'graph build:', (end - start), 'sec'
-                print 'len expl', len(self.explodedGraph.sEdges)
+                #end = time.time()
+                #print 'graph build:', (end - start), 'sec'
 
                 self.segm_progress.emit(30)
                 self.total = 30
-                if len(self.explodedGraph.sEdges) > 0:
-                    num_expl_feat = max(self.explodedGraph.sEdges.keys())
-                else:
-                    num_expl_feat = 1
-                step = 65 / float(num_expl_feat) #fix division by 0
-
-                self.explodedGraph.progress.disconnect()
-                self.explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
-
-                start = time.time()
-                print 'starting at', start
 
                 try:
-                    segments, breakages = self.explodedGraph.break_features(self.settings['stub_ratio'], self.settings['breakages'], unlinks_layer, None)
-                except Exception, e:
+                    num_expl_feat = len(explodedGraph.explodedFeatures)
+                except ZeroDivisionError:  # fix division by 0
+                    num_expl_feat = 1
+                step = 65 / float(num_expl_feat)
+
+                explodedGraph.progress.disconnect()
+                explodedGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+
+                #start = time.time()
+                #print 'starting at', start
+
+                try:
+                    segments, breakages = explodedGraph.break_features(self.settings['stub_ratio'],
+                                                                       self.settings['breakages'], unlinks_layer, None)
+                except Exception, e:  # forward the exception upstream
                     self.error.emit(e, traceback.format_exc())
 
-                end = time.time()
-                print 'graph segment:', end - start, 'sec'
-                print 'ending at', end
+                #end = time.time()
+                #print 'graph segment:', end - start, 'sec'
 
-                self.explodedGraph.progress.disconnect()
+                explodedGraph.progress.disconnect()
 
-                if self.segm_killed is True or self.explodedGraph.killed is True: return
-                fields = self.explodedGraph.sEdgesFields
+                if self.segm_killed is True or explodedGraph.killed is True: return
+
+                fields = explodedGraph.sEdgesFields
                 # if is_debug:
                 print "survived!"
-                print datetime.datetime.now().time()
+
                 self.segm_progress.emit(95)
                 # return cleaned data, errors and unlinks
-                ret = ((segments, fields), (breakages, [QgsField('id',QVariant.Int)]))
-
-                #except Exception, e:
-                    # forward the exception upstream
-                #    self.error.emit(e, traceback.format_exc())
+                ret = ((segments, fields), (breakages, [QgsField('id', QVariant.Int)]))
 
             self.finished.emit(ret)
 
