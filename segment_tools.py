@@ -1,7 +1,7 @@
 
 # general imports
 from PyQt4.QtCore import QObject, pyqtSignal, QVariant
-from qgis.core import QgsGeometry, QgsSpatialIndex, QgsField, QgsDistanceArea
+from qgis.core import QgsGeometry, QgsSpatialIndex, QgsField, QgsDistanceArea, QgsFeature
 
 # plugin module imports
 try:
@@ -156,9 +156,10 @@ class segmentTool(QObject):
                 segm_id += 1
                 segm_feat = QgsFeature()
                 segm_feat.setGeometry(new_geom)
-                segm_feat.setFeatureId(segm_id)
-                segm_feat.setAttributes(expl_feat.attributes() + [segm_id])
-                segments.append(segm_feat)
+                if new_geom.isGeosValid():
+                    segm_feat.setFeatureId(segm_id)
+                    segm_feat.setAttributes(expl_feat.attributes() + [segm_id])
+                    segments.append(segm_feat)
 
         self.sEdgesFields.append(QgsField('segm_id', QVariant.Int))
         return segments, self.breakages

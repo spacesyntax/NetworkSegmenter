@@ -345,7 +345,7 @@ class NetworkSegmenterTool(QObject):
                 #print 'starting at', start
 
                 try:
-                    segments, breakages = explodedGraph.break_features(self.settings['stub_ratio'],
+                    segments, breakages = self.explodedGraph.break_features(self.settings['stub_ratio'],
                                                                        self.settings['breakages'], unlinks_layer, None)
                 except Exception, e:  # forward the exception upstream
                     self.error.emit(e, traceback.format_exc())

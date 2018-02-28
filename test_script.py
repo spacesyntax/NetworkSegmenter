@@ -1,9 +1,9 @@
-#execfile(u'/Users/joe/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
-#execfile(u'/Users/joe/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
+execfile(u'/Users/joe/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
+execfile(u'/Users/joe/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
 
-execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/segment_tools.py'.encode('mbcs'))
-execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/utilityFunctions.py'.encode('mbcs'))
-layer_name = 'axial_map_m25_small'
+#execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/segment_tools.py'.encode('mbcs'))
+#execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/utilityFunctions.py'.encode('mbcs'))
+layer_name = 'invalid'
 
 import time
 
