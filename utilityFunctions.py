@@ -39,36 +39,12 @@ def explode_iter(pl):
         yield pl[i], pl[i+1]
 
 
-def getQgsFeat(geom, attrs, id):
+def getQgsFeat(geom, id):
     feat = QgsFeature()
-    feat.setAttributes(attrs)
+    feat.setAttributes([id])
     feat.setFeatureId(id)
     feat.setGeometry(geom)
     return feat
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 def to_shp(path, any_features_list, layer_fields, crs, name, encoding, geom_type):
     if path is None:

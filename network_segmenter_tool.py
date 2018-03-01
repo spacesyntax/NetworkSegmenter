@@ -221,7 +221,7 @@ class NetworkSegmenterTool(QObject):
                 final.updateExtents()
             # create unlinks layer
             if self.settings['breakages']:
-                break_Points = to_shp(None, [feat_from_geom_id(pgeom, i) for i, pgeom in enumerate(ret[1][0])], ret[1][1], crs, 'break points', encoding, 0)
+                break_Points = to_shp(None, [getQgsFeat(pgeom, i) for i, pgeom in enumerate(ret[1][0])], ret[1][1], crs, 'break points', encoding, 0)
                 if break_Points:
                     QgsMapLayerRegistry.instance().addMapLayer(break_Points)
                     break_Points.updateExtents()

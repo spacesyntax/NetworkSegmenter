@@ -70,20 +70,17 @@ class segmentTool(QObject):
         return
 
     def prepare_unlinks(self, unlinks_layer, buffer_threshold):
-        print 'preparing..'
+        print 'preparing unlinks..'
         for unlink in unlinks_layer.getFeatures():
             # find two intersecting lines
             unlink_geom = unlink.geometry()
             if buffer_threshold:
                 unlink_geom = unlink_geom.buffer(buffer_threshold, 22)
             inter_lines = self.spIndex.intersects(unlink_geom.boundingBox())
-            if unlinks_layer.geometryType() in [0, 2]:
-                inter_lines = [x for x in inter_lines if unlink_geom.distance(self.explodedFeatures[x].geometry()) <= 0.0001] # network tolerance todo user input??
+            inter_lines = [x for x in inter_lines if unlink_geom.distance(self.explodedFeatures[x].geometry()) <= 0.0001] # network tolerance todo user input??
             if len(inter_lines) == 2: # excluding invalid unlinks
                 self.unlinks[inter_lines[0]].append(inter_lines[1])
                 self.unlinks[inter_lines[1]].append(inter_lines[0])
-            elif len(inter_lines) == 1: # self intersecting
-                self.unlinks[inter_lines[0]].append(inter_lines[0])
         return
 
     def get_breakages(self, f_geom, e_fid, unlinks_layer, getBreakPoints, stub_ratio):
@@ -110,6 +107,11 @@ class segmentTool(QObject):
                         crossing_points.append(point)
 
         crossing_points.sort(key=lambda x: x.distance(startpntgeom))
+
+        if getBreakPoints:
+            # not duplicates TODO: only geom, or plus line 1 & line 2
+            self.breakages += crossing_points
+
         crossing_points = [i.asPoint() for i in crossing_points]
 
         # check for stubs
@@ -124,18 +126,12 @@ class segmentTool(QObject):
         else:
             crossing_points = [startpoint] + crossing_points + [endpoint]
 
-        if getBreakPoints:
-            # not duplicates TODO: only geom, or plus line 1 & line 2
-            self.breakages += crossing_points
-
         return crossing_points
 
     def break_features(self, stub_ratio, getBreakPoints, unlinks_layer, buffer_threshold):
 
         if unlinks_layer:
             self.prepare_unlinks(unlinks_layer, buffer_threshold)
-
-        print 'unlinks', {k:v for k,v in self.unlinks.items() if len(v) > 0}
 
         f_count = 1
         segm_id = 0
