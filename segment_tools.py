@@ -44,6 +44,7 @@ class segmentTool(QObject):
             # geometry and attributes
             f_geom = f.geometry()
             #f_geom.geometry().dropZValue() # drop 3rd dimension # if f_geom.geometry().is3D(): # geom_type not in [5, 2, 1]
+            # TODO: test copy feature to speed up attributes retrieval
             f_attrs = f.attributes()
 
             # explode(multi)linestrings
