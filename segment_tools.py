@@ -78,8 +78,8 @@ class segmentTool(QObject):
             if buffer_threshold:
                 unlink_geom = unlink_geom.buffer(buffer_threshold, 22)
             inter_lines = self.spIndex.intersects(unlink_geom.boundingBox())
-            inter_lines = [x for x in inter_lines if unlink_geom.distance(self.explodedFeatures[x].geometry()) <= 0.0001] # network tolerance todo user input??
-            if len(inter_lines) == 2: # excluding invalid unlinks
+            inter_lines = [x for x in inter_lines if unlink_geom.distance(self.explodedFeatures[x].geometry()) <= 0.0001]  # network tolerance todo user input??
+            if len(inter_lines) == 2:  # excluding invalid unlinks
                 self.unlinks[inter_lines[0]].append(inter_lines[1])
                 self.unlinks[inter_lines[1]].append(inter_lines[0])
         return
@@ -153,10 +153,10 @@ class segmentTool(QObject):
                 segm_id += 1
                 segm_feat = QgsFeature()
                 segm_feat.setGeometry(new_geom)
-                if new_geom.isGeosValid():
-                    segm_feat.setFeatureId(segm_id)
-                    segm_feat.setAttributes(expl_feat.attributes() + [segm_id])
-                    segments.append(segm_feat)
+                # if new_geom.isGeosValid():
+                segm_feat.setFeatureId(segm_id)
+                segm_feat.setAttributes(expl_feat.attributes() + [segm_id])
+                segments.append(segm_feat)
 
         self.sEdgesFields.append(QgsField('segm_id', QVariant.Int))
         return segments, self.breakages
