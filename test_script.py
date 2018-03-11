@@ -40,11 +40,12 @@ explGraph.hasunlinks = True
 # explGraph.generatesegments(i)
 
 start = time.time()
-segments, breakages = explGraph.segmentedges(unlinks_layer, 40) #todo test buffer_threshold
+segments, breakages = explGraph.segmentedges(unlinks_layer, None) #todo test buffer_threshold
 end = time.time()
 print 'Graph explode', end - start
 
-segmented = to_shp(path, segments, explGraph.sEdgesFields, crs, 'segmented', encoding, geom_type)
+import itertools
+segmented = to_shp(path, list(itertools.chain.from_iterable(segments)), explGraph.sEdgesFields, crs, 'segmented', encoding, geom_type)
 QgsMapLayerRegistry.instance().addMapLayer(segmented)
 
 
