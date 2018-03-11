@@ -20,28 +20,29 @@ def getLayerByName(name):
             layer = i
     return layer
 
+def iter_from_layer(layer):
+    for f in layer.getFeatures():
+        f_geom = f.geometry()
+        if f_geom.wkbType() in [2, 5]:
+            yield f
+
 # -------------------------- GEOMETRY HANDLING
 
+def get_polylines(f_geom):
+    if f_geom.wkbType() == 2:
+        yield  f_geom
+    elif f_geom.wkbType() == 5:
+        for g in f_geom.asMultiPolyline():
+            yield g
 
-def segm_from_pl_iter(pl_geom):
-    if pl_geom.wkbType() == 5:
-        for pl in pl_geom.asMultiPolyline():
-            for segm_geom in explode_iter(pl):
-                yield segm_geom
-    elif pl_geom.wkbType() == 2:
-        pl = pl_geom.asPolyline()
-        for segm_geom in explode_iter(pl):
-            yield segm_geom
-
-
-def explode_iter(pl):
+def get_lines(polyline_geom):
+    pl = polyline_geom.asPolyline()
     for i in range(len(pl) - 1):
-        yield pl[i], pl[i+1]
-
+        yield QgsGeometry.fromPolyline([pl[i], pl[i+1]])
 
 def getQgsFeat(geom, id):
     feat = QgsFeature()
-    feat.setAttributes([id])
+    feat.setAttributes([])
     feat.setFeatureId(id)
     feat.setGeometry(geom)
     return feat

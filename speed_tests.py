@@ -144,7 +144,7 @@ start = time.time()
 def sedge_from_feat(f):
     return sEdge(f.id(), f.geometry(), f.attributes())
 
-sedges = map(lambda x: copy_feat(x), layer.getFeatures())
+sedges = map(lambda x: sedge_from_feat(x), layer.getFeatures())
 
 dict_feat = dict(zip([e.id for e in sedges], sedges))
 end = time.time()

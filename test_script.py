@@ -1,9 +1,9 @@
 execfile(u'/Users/joe/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
 execfile(u'/Users/joe/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
-
+execfile(u'/Users/joe/NetworkSegmenter/sEdge.py'.encode('utf-8'))
 #execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/segment_tools.py'.encode('mbcs'))
 #execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/utilityFunctions.py'.encode('mbcs'))
-layer_name = 'invalid'
+layer_name = 'axial_map_m25'
 
 import time
 
@@ -17,10 +17,21 @@ geom_type = layer.dataProvider().geometryType()
 
 unlinks_layer = getLayerByName(unlinks_layer_name)
 flds = getQFields(layer)
-explodedGraph = segmentTool(flds)
 
+explGraph = sGraph(flds)
 start = time.time()
-explodedGraph.addedges(layer)
+
+for f in iter_from_layer(layer):
+    break
+
+
+explGraph.explode_sedge(f.geometry(), f.attributes())
+
+l = map(lambda f: explGraph.explode_sedge(f.geometry(), f.attributes() + [f.id()]),  iter_from_layer(layer))
+
+explGraph.addexpledges(iter_from_layer(layer))
+len(explGraph.sEdges)
+
 
 end = time.time()
 print 'Graph build', end - start

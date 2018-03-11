@@ -9,7 +9,7 @@ try:
 except ImportError:
     pass
 
-class segmentTool(QObject):
+class sGraph(QObject):
 
     finished = pyqtSignal(object)
     error = pyqtSignal(Exception, basestring)
@@ -20,54 +20,62 @@ class segmentTool(QObject):
     #TODO:
     def __init__(self, sEdgesFields):
         QObject.__init__(self)
-        self.explodedFeatures = {} # id: feat
-        self.explodedTopology = {} # xy: connectivity
-        # TODO: clean sEdgesFields from e_fid and original_id
+        self.sEdges = {} # id: sedge
+        self.sNodes = {} # xy: connectivity
         self.sEdgesFields = sEdgesFields # list of QGgsfield objects
         self.unlinks = {}
         self.spIndex = QgsSpatialIndex()
 
-        self.breakagescount = 0
-        self.breakages = []
+        try:
+            self.atEdgeCounter = max(self.sEdges.keys())
+        except ValueError:
+            self.atEdgeCounter = 0
 
-    def addedges(self, layer):
+    def wrap_iter(self, any_iter):
+        for i in any_iter:
+            if s:
+                break
+            else:
+                yield i
 
-        new_key_count = 0
-        f_count = 1
-        for f in layer.getFeatures():
+    def addedge(self, f_geom, f_attrs):
 
-            self.progress.emit(30 * f_count / layer.featureCount())
-            f_count += 1
+        # self.progress.emit((60 * f_count / max(self.explodedFeatures.keys())) + 30)
 
-            if self.killed is True: break
+        # sp Index
+        self.atEdgeCounter += 1
+        feat = getQgsFeat(f_geom, self.atEdgeCounter)
+        self.spIndex.insertFeature(feat)
+        self.unlinks[self.atEdgeCounter] = []
+        f_geom_pl = f_geom.asPolyline()
+        for i in [f_geom_pl[0], f_geom_pl[-1]]:
+            try:
+                self.sNodes[(i.x(), i.y())] += 1
+            except KeyError:
+                self.sNodes[(i.x(), i.y())] = 1
+        return sEdge(self.atEdgeCounter, f_geom, f_attrs)
 
-            # geometry and attributes
-            f_geom = f.geometry()
-            #f_geom.geometry().dropZValue() # drop 3rd dimension # if f_geom.geometry().is3D(): # geom_type not in [5, 2, 1]
-            # TODO: test copy feature to speed up attributes retrieval
-            f_attrs = f.attributes()
+    def explode_sedge(self, f_geom, f_attrs):
+        segms = map(lambda polyline: map(lambda line : self.addedge(line, f_attrs), get_lines(polyline)), get_polylines(f_geom))
+        return sum(segms, [])
 
-            # explode(multi)linestrings
-            # exclude points & invalids and other
-            for (p1, p2) in segm_from_pl_iter(f_geom):
-                new_key_count += 1
-                segm_feat = QgsFeature()
-                segm_feat.setFeatureId(new_key_count)
-                segment = QgsGeometry.fromPolyline([p1, p2])
-                segm_feat.setGeometry(segment)
-                segm_feat.setAttributes(f_attrs + [new_key_count])
-                self.spIndex.insertFeature(segm_feat)
+    # add edges from any_iter - has to be ls - no multils
+    def addedges(self, any_iter):
 
-                self.unlinks[new_key_count] = []
-                self.explodedFeatures[new_key_count] = segm_feat
+        sedges = map(lambda (f_id, f_geom, f_attrs): self.addedge(f_geom, f_attrs + [f_id]), self.wrap_iter(any_iter))
+        self.sEdges.update(dict(zip([e.id for e in sedges], sedges)))
 
-                for i in (p1, p2):
-                    try:
-                        self.explodedTopology[(i.x(), i.y())] += 1
-                    except KeyError:
-                        self.explodedTopology[(i.x(), i.y())] = 1
+        return
 
-        self.sEdgesFields.append(QgsField('expl_id', QVariant.Int))
+    # add exploded edges from any_iter
+    def addexpledges(self, any_iter):
+
+        expl = map(lambda f: self.explode_sedge(f.geometry(), f.attributes() + [f.id()]), any_iter)
+        print len(expl)
+        expl_sedges = sum(expl, [])
+
+        self.sEdges.update(dict(zip([e.id for e in expl_sedges], expl_sedges)))
+
         return
 
     def prepare_unlinks(self, unlinks_layer, buffer_threshold):
