@@ -19,32 +19,32 @@ unlinks_layer = getLayerByName(unlinks_layer_name)
 flds = getQFields(layer)
 
 explGraph = sGraph(flds)
+
 start = time.time()
-
-for f in iter_from_layer(layer):
-    break
-
-
-explGraph.explode_sedge(f.geometry(), f.attributes())
-
-l = map(lambda f: explGraph.explode_sedge(f.geometry(), f.attributes() + [f.id()]),  iter_from_layer(layer))
-
-explGraph.addexpledges(iter_from_layer(layer))
-len(explGraph.sEdges)
-
-
+explGraph.addexpledges(explGraph.iter_from_layer(layer), layer.featureCount())
 end = time.time()
 print 'Graph build', end - start
 
+len(explGraph.sEdges)
+
+exploded_layer = to_shp(path, map(lambda sedge: sedge.qgsFeat(), explGraph.sEdges.values()), explGraph.sEdgesFields, crs, 'exploded layer', encoding, geom_type)
+QgsMapLayerRegistry.instance().addMapLayer(exploded_layer)
+
+explGraph.getBreakPoints = True
+explGraph.stub_ratio = 40
+explGraph.hasunlinks = True
+
+#for i in explGraph.sEdges.values():
+#    break
+
+# explGraph.generatesegments(i)
+
 start = time.time()
-segments, breakages = explodedGraph.break_features(40, True, unlinks_layer, None) #todo test buffer_threshold
+segments, breakages = explGraph.segmentedges(unlinks_layer, 40) #todo test buffer_threshold
 end = time.time()
 print 'Graph explode', end - start
 
-#expl = to_shp(path, [sedge.qgsFeat() for sedge in explodedGraph.sEdges.values()], explodedGraph.sEdgesFields, crs, 'expl', encoding, geom_type)
-#QgsMapLayerRegistry.instance().addMapLayer(expl)
-
-segmented = to_shp(path, segments, explodedGraph.sEdgesFields, crs, 'segmented', encoding, geom_type)
+segmented = to_shp(path, segments, explGraph.sEdgesFields, crs, 'segmented', encoding, geom_type)
 QgsMapLayerRegistry.instance().addMapLayer(segmented)
 
 

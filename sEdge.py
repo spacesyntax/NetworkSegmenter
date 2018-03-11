@@ -1,4 +1,5 @@
 from PyQt4.QtCore import QObject
+from qgis.core import QgsFeature
 
 class sEdge(QObject):
 
@@ -7,3 +8,9 @@ class sEdge(QObject):
         self.id = id
         self.geom = geom
         self.attrs = attrs
+
+    def qgsFeat(self):
+        feat = QgsFeature()
+        feat.setGeometry(self.geom)
+        feat.setAttributes(self.attrs)
+        return feat

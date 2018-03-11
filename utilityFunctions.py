@@ -1,6 +1,5 @@
 # general imports
 from qgis.core import QgsMapLayerRegistry, QgsVectorFileWriter, QgsVectorLayer, QgsFeature, QgsGeometry,QgsFields, QgsDataSourceURI, QgsField
-from PyQt4.QtCore import QObject
 import psycopg2
 from psycopg2.extensions import AsIs
 
@@ -20,13 +19,8 @@ def getLayerByName(name):
             layer = i
     return layer
 
-def iter_from_layer(layer):
-    for f in layer.getFeatures():
-        f_geom = f.geometry()
-        if f_geom.wkbType() in [2, 5]:
-            yield f
-
 # -------------------------- GEOMETRY HANDLING
+
 
 def get_polylines(f_geom):
     if f_geom.wkbType() == 2:
@@ -35,17 +29,66 @@ def get_polylines(f_geom):
         for g in f_geom.asMultiPolyline():
             yield g
 
+
 def get_lines(polyline_geom):
     pl = polyline_geom.asPolyline()
     for i in range(len(pl) - 1):
         yield QgsGeometry.fromPolyline([pl[i], pl[i+1]])
 
-def getQgsFeat(geom, id):
+
+def getQgsFeat(fgeom, fid):
     feat = QgsFeature()
     feat.setAttributes([])
-    feat.setFeatureId(id)
-    feat.setGeometry(geom)
+    feat.setFeatureId(fid)
+    feat.setGeometry(fgeom)
     return feat
+
+
+def get_geoms(points):
+    for i, p in enumerate(points[1:]):
+        yield QgsGeometry.fromPolyline([points[i], p])
+
+
+# -------------------------- POSTGIS INFO RETRIEVAL
+
+
+# SOURCE: ESS TOOLKIT
+def getPostgisSchemas(connstring, commit=False):
+    """Execute query (string) with given parameters (tuple)
+    (optionally perform commit to save Db)
+    :return: result set [header,data] or [error] error
+    """
+
+    try:
+        connection = psycopg2.connect(connstring)
+    except psycopg2.Error, e:
+        print e.pgerror
+        connection = None
+
+    schemas = []
+    data = []
+    if connection:
+        query = unicode("""SELECT schema_name from information_schema.schemata;""")
+        cursor = connection.cursor()
+        try:
+            cursor.execute(query)
+            if cursor.description is not None:
+                data = cursor.fetchall()
+            if commit:
+                connection.commit()
+        except psycopg2.Error, e:
+            connection.rollback()
+        cursor.close()
+
+    # only extract user schemas
+    for schema in data:
+        if schema[0] not in ('topology', 'information_schema') and schema[0][:3] != 'pg_':
+            schemas.append(schema[0])
+    #return the result even if empty
+    return sorted(schemas)
+
+
+# -------------------------- LAYER BUILD
 
 def to_shp(path, any_features_list, layer_fields, crs, name, encoding, geom_type):
     if path is None:
@@ -72,9 +115,11 @@ def to_shp(path, any_features_list, layer_fields, crs, name, encoding, geom_type
     network.commitChanges()
     return network
 
+
 def rmv_parenthesis(my_string):
     idx = my_string.find(',ST_GeomFromText') - 1
     return  my_string[:idx] + my_string[(idx+1):]
+
 
 def to_dblayer(dbname, user, host, port, password, schema, table_name, qgs_flds, any_features_list, crs):
 
@@ -127,61 +172,4 @@ def to_dblayer(dbname, user, host, port, password, schema, table_name, qgs_flds,
     except psycopg2.DatabaseError, e:
         return e
 
-# SOURCE: ESS TOOLKIT
-def getPostgisSchemas(connstring, commit=False):
-    """Execute query (string) with given parameters (tuple)
-    (optionally perform commit to save Db)
-    :return: result set [header,data] or [error] error
-    """
-
-    try:
-        connection = psycopg2.connect(connstring)
-    except psycopg2.Error, e:
-        print e.pgerror
-        connection = None
-
-    schemas = []
-    data = []
-    if connection:
-        query = unicode("""SELECT schema_name from information_schema.schemata;""")
-        cursor = connection.cursor()
-        try:
-            cursor.execute(query)
-            if cursor.description is not None:
-                data = cursor.fetchall()
-            if commit:
-                connection.commit()
-        except psycopg2.Error, e:
-            connection.rollback()
-        cursor.close()
-
-    # only extract user schemas
-    for schema in data:
-        if schema[0] not in ('topology', 'information_schema') and schema[0][:3] != 'pg_':
-            schemas.append(schema[0])
-    #return the result even if empty
-    return sorted(schemas)
-
-class sEdge(QObject):
-
-    def __init__(self, e_fid, geom, attrs, original_id):
-        QObject.__init__(self)
-        self.e_fid = e_fid
-        self.original_id = original_id
-        self.geom = geom
-        self.attrs = attrs
-        self.breakages = []
-
-    def get_startnode(self):
-        return self.geom.asPolyline()[0]
-
-    def get_endnode(self):
-        return self.geom.asPolyline()[-1]
-
-    def qgsFeat(self):
-        edge_feat = QgsFeature()
-        edge_feat.setGeometry(self.geom)
-        edge_feat.setFeatureId(self.e_fid)
-        edge_feat.setAttributes([attr_values for attr_name, attr_values in self.attrs.items()])
-        return edge_feat
 

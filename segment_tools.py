@@ -17,7 +17,6 @@ class sGraph(QObject):
     warning = pyqtSignal(str)
     killed = pyqtSignal(bool)
 
-    #TODO:
     def __init__(self, sEdgesFields):
         QObject.__init__(self)
         self.sEdges = {} # id: sedge
@@ -25,18 +24,22 @@ class sGraph(QObject):
         self.sEdgesFields = sEdgesFields # list of QGgsfield objects
         self.unlinks = {}
         self.spIndex = QgsSpatialIndex()
+        self.breakages = []
+        self.segm_id = 0
 
         try:
             self.atEdgeCounter = max(self.sEdges.keys())
         except ValueError:
             self.atEdgeCounter = 0
 
-    def wrap_iter(self, any_iter):
-        for i in any_iter:
-            if s:
-                break
+    # inside class to control for stop iteration when user cancels
+    def iter_from_layer(self, layer):
+        for f in layer.getFeatures():
+            if self.killed is True: break
             else:
-                yield i
+                f_geom = f.geometry()
+                if f_geom.wkbType() in [2, 5]:
+                    yield f
 
     def addedge(self, f_geom, f_attrs):
 
@@ -53,83 +56,107 @@ class sGraph(QObject):
                 self.sNodes[(i.x(), i.y())] += 1
             except KeyError:
                 self.sNodes[(i.x(), i.y())] = 1
-        return sEdge(self.atEdgeCounter, f_geom, f_attrs)
+        self.sEdges[self.atEdgeCounter] = sEdge(self.atEdgeCounter, f_geom, f_attrs)
+        return True
 
-    def explode_sedge(self, f_geom, f_attrs):
-        segms = map(lambda polyline: map(lambda line : self.addedge(line, f_attrs), get_lines(polyline)), get_polylines(f_geom))
-        return sum(segms, [])
+    def explodeedge(self, f_geom, f_attrs):
+        res = map(lambda polyline: map(lambda line : self.addedge(line, f_attrs), get_lines(polyline)), get_polylines(f_geom))
+        del res
+        return True
 
     # add edges from any_iter - has to be ls - no multils
     def addedges(self, any_iter):
 
-        sedges = map(lambda (f_id, f_geom, f_attrs): self.addedge(f_geom, f_attrs + [f_id]), self.wrap_iter(any_iter))
-        self.sEdges.update(dict(zip([e.id for e in sedges], sedges)))
-
+        res = map(lambda (f_id, f_geom, f_attrs): self.addedge(f_geom, f_attrs + [f_id]), any_iter)
+        del res
         return
 
     # add exploded edges from any_iter
-    def addexpledges(self, any_iter):
-
-        expl = map(lambda f: self.explode_sedge(f.geometry(), f.attributes() + [f.id()]), any_iter)
-        print len(expl)
-        expl_sedges = sum(expl, [])
-
-        self.sEdges.update(dict(zip([e.id for e in expl_sedges], expl_sedges)))
-
+    def addexpledges(self, any_iter, leng):
+        self.progress_count = 0
+        self.total_count = leng
+        res = map(lambda f: self.explodeedge(f.geometry(), f.attributes() + [f.id()]), any_iter)
+        del res
         return
 
-    def prepare_unlinks(self, unlinks_layer, buffer_threshold):
+    def readunlink(self, unlink, buffer_threshold):
+        unlink_geom = unlink.geometry()
+        if buffer_threshold:
+            unlink_geom = QgsGeometry(unlink_geom.buffer(buffer_threshold, 22))
+        # network tolerance todo user input
+        inter_lines = filter(lambda x: unlink_geom.distance(self.sEdges[x].geom) <= 0.0001, self.spIndex.intersects(unlink_geom.boundingBox()))
+        if len(inter_lines) == 2:  # excluding invalid unlinks
+            self.unlinks[inter_lines[0]].append(inter_lines[1])
+            self.unlinks[inter_lines[1]].append(inter_lines[0])
+        return True
+
+    def readunlinks(self, unlinks_layer, buffer_threshold):
         print 'preparing unlinks..'
-        for unlink in unlinks_layer.getFeatures():
-            # find two intersecting lines
-            unlink_geom = unlink.geometry()
-            if buffer_threshold:
-                unlink_geom = unlink_geom.buffer(buffer_threshold, 22)
-            inter_lines = self.spIndex.intersects(unlink_geom.boundingBox())
-            inter_lines = [x for x in inter_lines if unlink_geom.distance(self.explodedFeatures[x].geometry()) <= 0.0001]  # network tolerance todo user input??
-            if len(inter_lines) == 2:  # excluding invalid unlinks
-                self.unlinks[inter_lines[0]].append(inter_lines[1])
-                self.unlinks[inter_lines[1]].append(inter_lines[0])
+        res = map(lambda unlink: self.readunlink(unlink, buffer_threshold), unlinks_layer.getFeatures())
+        print 'unlinks identified', len([x for x in self.unlinks.values() if len(x) > 0])
+        del res
         return
 
-    def get_breakages(self, f_geom, e_fid, unlinks_layer, getBreakPoints, stub_ratio):
+    def createsegmfeat(self, segm_geom, attrs):
+        self.segm_id += 1
+        segm_attrs = attrs + [self.segm_id]
+        feat = QgsFeature()
+        feat.setAttributes(segm_attrs)
+        feat.setFeatureId(self.segm_id)
+        feat.setGeometry(segm_geom)
+        return feat
+
+    def generatesegments(self, sedge):
+        crossing_points = self.getcrossings(sedge.geom, sedge.id)
+        # new_feat
+        return map(lambda segm_geom: self.createsegmfeat(segm_geom, sedge.attrs), get_geoms(crossing_points))
+
+    def segmentedges(self, unlinks_layer, buffer_threshold):
+        self.progress_count = 0
+        self.total_count = len(self.sEdges)
+
+        if unlinks_layer:
+            self.hasunlinks = True
+            self.readunlinks(unlinks_layer, buffer_threshold)
+
+        segments = map(lambda edge: self.generatesegments(edge), self.sEdges.values())
+        # segments = sum(res, []) # list of features
+        self.sEdgesFields.append(QgsField('segm_id', QVariant.Int))
+        return segments, self.breakages
+
+    def getcrossings(self, f_geom, f_id):
+
+        self.progress_count += 1
+        self.progress.emit((60 * self.progress_count /self.total_count) + 30)
 
         gids = self.spIndex.intersects(f_geom.boundingBox())
-        crossing_points = []
+        if self.hasunlinks:
+            gids = filter(lambda gid: gid not in self.unlinks[f_id], gids)
 
-        startpoint = f_geom.asPolyline()[0]
-        endpoint = f_geom.asPolyline()[-1]
-        startpntgeom = QgsGeometry.fromPoint(startpoint)
+        ggeoms = filter(lambda g_geom: f_geom.crosses(g_geom) or f_geom.touches(g_geom), map(lambda gid: self.sEdges[gid].geom, gids))
+
         # crossing lines
         # exclude unlinks
-        for gid in gids:
-            g_geom = self.explodedFeatures[gid].geometry()
-            if f_geom.crosses(g_geom) or f_geom.touches(g_geom):
-                if unlinks_layer and gid in self.unlinks[e_fid]:
-                    pass
-                else:
-                    point = f_geom.intersection(g_geom)
-                    if point.wkbType() == 4:
-                        for p in point.asGeometryCollection():
-                            crossing_points.append(p)
-                    elif point.wkbType() == 1:
-                        crossing_points.append(point)
+        crossing_points = filter(lambda p: p.wkbType() == 1, map(lambda g_geom: f_geom.intersection(g_geom), ggeoms)) # mlpoints should not exist
+
+        if self.getBreakPoints:
+            # not duplicates TODO: only geom, or plus line 1 & line 2
+            self.breakages += crossing_points  # list of features
+
+        startpoint = f_geom.asPolyline()[0]
+        startpntgeom = QgsGeometry.fromPoint(startpoint)
+        endpoint = f_geom.asPolyline()[-1]
 
         crossing_points.sort(key=lambda x: x.distance(startpntgeom))
-
-        if getBreakPoints:
-            # not duplicates TODO: only geom, or plus line 1 & line 2
-            self.breakages += crossing_points
-
-        crossing_points = [i.asPoint() for i in crossing_points]
+        crossing_points = map(lambda p: p.asPoint(), crossing_points)
 
         # check for stubs
-        if stub_ratio and len(crossing_points) > 0:
-            max_stub_length = (stub_ratio / float(100)) * f_geom.length()
-            if self.explodedTopology[(startpoint.x(), startpoint.y())] == 1:
+        if self.stub_ratio and len(crossing_points) > 0:
+            max_stub_length = (self.stub_ratio / float(100)) * f_geom.length()
+            if self.sNodes[(startpoint.x(), startpoint.y())] == 1:
                 if QgsDistanceArea().measureLine(startpoint, crossing_points[0]) > max_stub_length:
                     crossing_points = [startpoint] + crossing_points
-            if self.explodedTopology[(endpoint.x(), endpoint.y())] == 1:
+            if self.sNodes[(endpoint.x(), endpoint.y())] == 1:
                 if QgsDistanceArea().measureLine(endpoint, crossing_points[-1]) > max_stub_length:
                     crossing_points = crossing_points + [endpoint]
         else:
@@ -137,38 +164,5 @@ class sGraph(QObject):
 
         return crossing_points
 
-    def break_features(self, stub_ratio, getBreakPoints, unlinks_layer, buffer_threshold):
-
-        if unlinks_layer:
-            self.prepare_unlinks(unlinks_layer, buffer_threshold)
-
-        f_count = 1
-        segm_id = 0
-        segments = []
-
-        for expl_feat in self.explodedFeatures.values():
-
-            if self.killed is True: break
-            self.progress.emit((60 * f_count / max(self.explodedFeatures.keys())) + 30)
-            f_count += 1
-            f_geom = expl_feat.geometry()
-            crossing_points = self.get_breakages(f_geom, expl_feat.id(), unlinks_layer, getBreakPoints, stub_ratio)
-
-            # if no crossing points
-            for i, cross_point in enumerate(crossing_points[1:]):
-                new_geom = QgsGeometry.fromPolyline([crossing_points[i], cross_point])
-                # new_feat
-                segm_id += 1
-                segm_feat = QgsFeature()
-                segm_feat.setGeometry(new_geom)
-                # if new_geom.isGeosValid():
-                segm_feat.setFeatureId(segm_id)
-                segm_feat.setAttributes(expl_feat.attributes() + [segm_id])
-                segments.append(segm_feat)
-
-        self.sEdgesFields.append(QgsField('segm_id', QVariant.Int))
-        return segments, self.breakages
-
     def kill(self):
         self.killed = True
-
