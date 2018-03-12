@@ -6,6 +6,7 @@ from qgis.core import QgsGeometry, QgsSpatialIndex, QgsField, QgsDistanceArea, Q
 # plugin module imports
 try:
     from utilityFunctions import *
+    from sEdge import *
 except ImportError:
     pass
 
