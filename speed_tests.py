@@ -152,6 +152,19 @@ print 'TEST 12 time:', (end - start)
 
 
 ############################
+
+import geopandas as gpd
+import psycopg2  # (if it is postgres/postgis)
+
+start = time.time()
+
+con = psycopg2.connect(service="geodb")
+sql = "select * from gbr_space.axial_map_m25"
+df = gpd.GeoDataFrame.from_postgis(sql, con, geom_col='geom' )
+end = time.time()
+print 'TEST 13 time:', (end - start)
+
+############################
 #TEST 1 time: 0.891966819763
 #TEST 2 time: 0.91631603241
 #TEST 3 time: 2.08853697777
