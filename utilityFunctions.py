@@ -8,10 +8,6 @@ from psycopg2.extensions import AsIs
 # -------------------------- LAYER HANDLING
 
 
-def getQFields(layer):
-    return [QgsField(i.name(), i.type()) for i in layer.dataProvider().fields()]
-
-
 def getLayerByName(name):
     layer = None
     for i in QgsMapLayerRegistry.instance().mapLayers().values():
@@ -22,32 +18,13 @@ def getLayerByName(name):
 # -------------------------- GEOMETRY HANDLING
 
 
-def get_polylines(f_geom):
-    if f_geom.wkbType() == 2:
-        yield  f_geom
-    elif f_geom.wkbType() == 5:
-        for g in f_geom.asMultiPolyline():
-            yield g
-
-
-def get_lines(polyline_geom):
-    pl = polyline_geom.asPolyline()
-    for i in range(len(pl) - 1):
-        yield QgsGeometry.fromPolyline([pl[i], pl[i+1]])
-
-
-def getQgsFeat(fgeom, fid):
-    feat = QgsFeature()
-    feat.setAttributes([])
-    feat.setFeatureId(fid)
-    feat.setGeometry(fgeom)
-    return feat
-
-
-def get_geoms(points):
-    for i, p in enumerate(points[1:]):
-        yield QgsGeometry.fromPolyline([points[i], p])
-
+def load_points(mlp):
+    if mlp.wkbType() == 1:
+        return [mlp.asPoint()]
+    elif mlp.wkbType() == 4:
+        return map(lambda m: m.asPoint(), mlp.geometry().asMultiPoint())
+    else:
+        return []
 
 # -------------------------- POSTGIS INFO RETRIEVAL
 
@@ -90,86 +67,51 @@ def getPostgisSchemas(connstring, commit=False):
 
 # -------------------------- LAYER BUILD
 
-def to_shp(path, any_features_list, layer_fields, crs, name, encoding, geom_type):
-    if path is None:
-        if geom_type == 0:
-            network = QgsVectorLayer('Point?crs=' + crs.toWkt(), name, "memory")
-        elif geom_type == 3:
-            network = QgsVectorLayer('Polygon?crs=' + crs.toWkt(), name, "memory")
-        else:
-            network = QgsVectorLayer('LineString?crs=' + crs.toWkt(), name, "memory")
-    else:
-        fields = QgsFields()
-        for field in layer_fields:
-            fields.append(field)
+def to_layer(features, crs, geom_type, layer_type, path, name):
+    # fields
+    #layer_fields
+    if layer_type == 'memory':
+
+        geom_types = { 0: 'Point', 1: 'Line', 2:'Polygon'}
+        layer = QgsVectorLayer(geom_types[geom_type] + '?crs=' + crs.toWkt(), name, "memory")
+        pr = layer.dataProvider()
+        pr.addAttributes(layer_fields)
+        layer.startEditing()
+        pr.addFeatures(features)
+        layer.commitChanges()
+
+    elif layer_type == 'shapefile':
         file_writer = QgsVectorFileWriter(path, encoding, fields, geom_type, crs, "ESRI Shapefile")
         if file_writer.hasError() != QgsVectorFileWriter.NoError:
             print "Error when creating shapefile: ", file_writer.errorMessage()
         del file_writer
-        network = QgsVectorLayer(path, name, "ogr")
-    pr = network.dataProvider()
-    if path is None:
-        pr.addAttributes(layer_fields)
-    network.startEditing()
-    pr.addFeatures(any_features_list)
-    network.commitChanges()
-    return network
+        layer = QgsVectorLayer(path, name, "ogr")
+        pr = layer.dataProvider()
+        layer.startEditing()
+        pr.addFeatures(features)
+        layer.commitChanges()
+
+    elif layer_type == 'postgis':
+        crs_id = str(crs.postgisSrid())
+        # TODO: or service
+        connstring = "dbname=%s user=%s host=%s port=%s password=%s" % (dbname, user, host, port, password)
+        try:
+            uri = "dbname='test' host=localhost port=5432 user='user' password='password' key=gid type=POINT table=\"public\".\"test\" (geom) sql="
+            crs_id = 4326
+            crs = QgsCoordinateReferenceSystem(crs_id, QgsCoordinateReferenceSystem.EpsgCrsId)
+            # layer - QGIS vector layer
+            error = QgsVectorLayerImport.importLayer(layer, uri, "postgres", crs, False, False)
+            if error[0] != 0:
+                iface.messageBar().pushMessage(u'Error', error[1], QgsMessageBar.CRITICAL, 5)
+
+        except psycopg2.DatabaseError, e:
+            return e
+
+    else:
+        print "file type not supported"
+    return layer
 
 
-def rmv_parenthesis(my_string):
-    idx = my_string.find(',ST_GeomFromText') - 1
-    return  my_string[:idx] + my_string[(idx+1):]
 
-
-def to_dblayer(dbname, user, host, port, password, schema, table_name, qgs_flds, any_features_list, crs):
-
-    crs_id = str(crs.postgisSrid())
-    connstring = "dbname=%s user=%s host=%s port=%s password=%s" % (dbname, user, host, port, password)
-    try:
-        con = psycopg2.connect(connstring)
-        cur = con.cursor()
-        post_q_flds = {2: 'bigint[]', 6: 'numeric[]', 1: 'bool[]', 'else':'text[]'}
-        postgis_flds_q = """"""
-        for f in qgs_flds:
-            f_name = '\"'  + f.name()  + '\"'
-            try: f_type = post_q_flds[f.type()]
-            except KeyError: f_type = post_q_flds['else']
-            postgis_flds_q += cur.mogrify("""%s %s,""", (AsIs(f_name), AsIs(f_type)))
-
-        query = cur.mogrify("""DROP TABLE IF EXISTS %s.%s; CREATE TABLE %s.%s(%s geom geometry(LINESTRING, %s))""", (AsIs(schema), AsIs(table_name), AsIs(schema), AsIs(table_name), AsIs(postgis_flds_q), AsIs(crs_id)))
-        cur.execute(query)
-        con.commit()
-
-        data = []
-
-        for (fid, attrs, wkt) in any_features_list:
-            for idx, l_attrs in enumerate(attrs):
-                if l_attrs:
-                    attrs[idx] = [i if i else None for i in l_attrs]
-                    if attrs[idx] == [None]:
-                        attrs[idx] = None
-                    else:
-                        attrs[idx] = [a for a in attrs[idx] if a]
-            data.append(tuple((attrs, wkt)))
-
-        args_str = ','.join(
-            [rmv_parenthesis(cur.mogrify("%s,ST_GeomFromText(%s,%s))", (tuple(attrs), wkt, AsIs(crs_id)))) for
-             (attrs, wkt) in tuple(data)])
-
-        ins_str = cur.mogrify("""INSERT INTO %s.%s VALUES """, (AsIs(schema), AsIs(table_name)))
-        cur.execute(ins_str + args_str)
-        con.commit()
-        con.close()
-
-        print "success!"
-        uri = QgsDataSourceURI()
-        # set host name, port, database name, username and password
-        uri.setConnection(host, port, dbname, user, password)
-        # set database schema, table name, geometry column and optionally
-        uri.setDataSource(schema, table_name, "geom")
-        return QgsVectorLayer(uri.uri(), table_name, "postgres")
-
-    except psycopg2.DatabaseError, e:
-        return e
 
 
