@@ -73,24 +73,26 @@ class segmentor(QObject):
         interlines = filter(lambda i:  ml_geom.intersects(self.feats[i].geometry()), self.spIndex.intersects(ml_geom.boundingBox()))
         cross_p = list(itertools.chain.from_iterable(map(lambda i: load_points(ml_geom.intersection(self.feats[i].geometry())),
                                                interlines)))  # same id intersection is line
-        order = map(lambda p: ml_geom.lineLocatePoint(QgsGeometry.fromPoint(p)), cross_p)
-        cross_p = [x for _, x in sorted(zip(order, cross_p))]
         expl_p = ml_geom.asPolyline()
-
-        if self.stub_ratio:
-            for i in (((0, 0), (-2, -1))):
-                end = QgsGeometry.fromPoint(ml_geom.vertexAt(i[1]))
-                if len(filter(lambda j: end.intersects(self.feats[j].geometry()), self.spIndex.intersects(end.boundingBox()))) == 1:
-                    end_segm = QgsGeometry.fromPolyline([ml_geom.vertexAt(i[0]), ml_geom.vertexAt(i[0]+1)])
-                    end_stub = QgsGeometry.fromPolyline([ml_geom.vertexAt(i[0]), cross_p[i[0]]])
-                    if end_stub.geometry().length() < 0.4 * end_segm.geometry().length():
-                        self.stubs_points.append(ml_geom.vertexAt(i[1]))
-                        expl_p.remove(expl_p[i[1]])
 
         self.break_points[ml_id] = set(cross_p + expl_p).difference(set(self.unlink_points[ml_id]))
         order = map(lambda p: ml_geom.lineLocatePoint(QgsGeometry.fromPoint(p)), self.break_points[ml_id])
         ordered_points = [x for _, x in sorted(zip(order, self.break_points[ml_id]))]
-        return map(lambda pair: self.copy_feat(ml_feat, QgsGeometry.fromPolyline(list(pair))), zip(ordered_points[:-1], ordered_points[1:]))
+        br_features = map(lambda pair: self.copy_feat(ml_feat, QgsGeometry.fromPolyline(list(pair))), zip(ordered_points[:-1], ordered_points[1:]))
+
+        if self.stub_ratio:
+            for i in (((0, 0), (-2, -1))):
+                end = QgsGeometry.fromPoint(ml_geom.vertexAt(i[1]))
+                if len(filter(lambda j: end.intersects(self.feats[j].geometry()),
+                              self.spIndex.intersects(end.boundingBox()))) == 1:
+                    end_segm = QgsGeometry.fromPolyline([ml_geom.vertexAt(i[0]), ml_geom.vertexAt(i[0] + 1)])
+                    end_stub = br_features[i[1]]
+                    if end_stub.geometry().length() < 0.4 * end_segm.geometry().length():
+                        self.stubs_points.append(ml_geom.vertexAt(i[1]))
+                        # expl_p.remove(expl_p[i[1]])
+                        br_features.remove(br_features[i[1]])
+
+        return br_features
 
     def segment(self):
 
