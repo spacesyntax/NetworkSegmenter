@@ -10,7 +10,7 @@ unlinks = getLayerByName('axial_map_m25_u')
 stub_ratio = 0.4
 buffer = 0
 # my_segmentor = segmentor(layer, None, stub_ratio, None)
-my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer)
+my_segmentor = segmentor(layer, unlinks, None, buffer)
 
 my_segmentor.unlink_points.items()[0:10]
 
@@ -29,6 +29,7 @@ connstring = "service=%s" % ('uk')
 
 
 br = my_segmentor.segment()
+to_layer(br, layer.crs(), layer.dataProvider().encoding(), layer.dataProvider().geometryType(), "shapefile", '/Users/joe/segmented.shp', 'segmented')
 
 # old : 1 m 30 s
 # now: 1 m 05 s

@@ -17,15 +17,6 @@ def getLayerByName(name):
 
 # -------------------------- GEOMETRY HANDLING
 
-
-def load_points(mlp):
-    if mlp.wkbType() == 1:
-        return [mlp.asPoint()]
-    elif mlp.wkbType() == 4:
-        return map(lambda m: m.asPoint(), mlp.geometry().asMultiPoint())
-    else:
-        return []
-
 # -------------------------- POSTGIS INFO RETRIEVAL
 
 
@@ -67,15 +58,17 @@ def getPostgisSchemas(connstring, commit=False):
 
 # -------------------------- LAYER BUILD
 
-def to_layer(features, crs, geom_type, layer_type, path, name):
+def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
     # fields
+    first_feat = features[0]
+    fields = first_feat.fields()
     #layer_fields
     if layer_type == 'memory':
 
         geom_types = { 0: 'Point', 1: 'Line', 2:'Polygon'}
         layer = QgsVectorLayer(geom_types[geom_type] + '?crs=' + crs.toWkt(), name, "memory")
         pr = layer.dataProvider()
-        pr.addAttributes(layer_fields)
+        pr.addAttributes(fields)
         layer.startEditing()
         pr.addFeatures(features)
         layer.commitChanges()

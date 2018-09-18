@@ -22,7 +22,8 @@ class segmentor(QObject):
         self.con1 = {}
         self.feats = {}
         self.break_points = {}
-        self.pairs_crossing = {}
+        self.break_feats = []
+        self.unlinks_points = {}
 
         self.id = 0
         self.step = 1/self.layer.featureCount()
@@ -38,15 +39,10 @@ class segmentor(QObject):
         # unlink validity
         if self.unlinks:
             res = map(lambda unlink: self.load_unlink(unlink), unlinks.getFeatures())
-            res = map(lambda (k, v): self.load_valid_unlink(k, v), self.pairs_crossing.items())
-
         del res
 
-    def load_valid_unlink(self, k, v):
-        self.unlink_points[k] = v
-        return True
-
     def load_unlink(self, unlink): # TODO self.buffer can be 0,  buffer not allowed in polygons
+
         unlink_geom = unlink.geometry()
         unlink_geom_buffer = unlink_geom.buffer(self.buffer, 36)
         lines = filter(lambda i: unlink_geom_buffer.intersects(self.feats[i].geometry()),
@@ -57,9 +53,9 @@ class segmentor(QObject):
         if len(lines) == 2:
             for i in lines:
                 try:
-                    self.pairs_crossing[i] += [unlink_geom.asPoint()]
+                    self.unlinks_points[i[0]].append(i[1])
                 except KeyError:
-                    self.pairs_crossing[i] = [unlink_geom.asPoint()]
+                    self.unlinks_points[i[0]] = [i[1]]
         else:
             self.invalid_unlinks.append(unlink_geom)
         return True
@@ -70,37 +66,36 @@ class segmentor(QObject):
         self.progress.emit(self.step)
 
         ml_geom = ml_feat.geometry()
-        interlines = filter(lambda i:  ml_geom.intersects(self.feats[i].geometry()), self.spIndex.intersects(ml_geom.boundingBox()))
-        cross_p = list(itertools.chain.from_iterable(map(lambda i: load_points(ml_geom.intersection(self.feats[i].geometry())),
-                                               interlines)))  # same id intersection is line
-        expl_p = ml_geom.asPolyline()
+        interlines = filter(lambda i:  ml_geom.intersects(self.feats[i].geometry()), self.spIndex.intersects(ml_geom.boundingBox()) - self.unlinks_points[ml_id])
+        cross_p = sorted(map(lambda i: (ml_geom.lineLocatePoint(i), i.asPoint()), self.load_point_iter(interlines, ml_geom)))  # same id intersection is line
+        cross_p = zip(*cross_p)[1]
+        break_feats = map(lambda pair: self.copy_feat(ml_feat, QgsGeometry.fromPolyline(list(pair))), zip(cross_p[:-1], cross_p[1:]))
+        end_segms = [QgsGeometry.fromPolyline([cross_p[0], ml_geom.vertexAt(1)]), QgsGeometry.fromPolyline([ml_geom.vertexAt(-2), cross_p[-1]])]
+        return break_feats, cross_p, end_segms
 
-        self.break_points[ml_id] = set(cross_p + expl_p).difference(set(self.unlink_points[ml_id]))
-        order = map(lambda p: ml_geom.lineLocatePoint(QgsGeometry.fromPoint(p)), self.break_points[ml_id])
-        ordered_points = [x for _, x in sorted(zip(order, self.break_points[ml_id]))]
-        br_features = map(lambda pair: self.copy_feat(ml_feat, QgsGeometry.fromPolyline(list(pair))), zip(ordered_points[:-1], ordered_points[1:]))
-
-        if self.stub_ratio:
-            for i in (((0, 0), (-2, -1))):
-                end = QgsGeometry.fromPoint(ml_geom.vertexAt(i[1]))
-                if len(filter(lambda j: end.intersects(self.feats[j].geometry()),
-                              self.spIndex.intersects(end.boundingBox()))) == 1:
-                    end_segm = QgsGeometry.fromPolyline([ml_geom.vertexAt(i[0]), ml_geom.vertexAt(i[0] + 1)])
-                    end_stub = br_features[i[1]]
-                    if end_stub.geometry().length() < 0.4 * end_segm.geometry().length():
-                        self.stubs_points.append(ml_geom.vertexAt(i[1]))
-                        # expl_p.remove(expl_p[i[1]])
-                        br_features.remove(br_features[i[1]])
-
-        return br_features
+    def load_point_iter(self, interlines, ml_geom):
+        for line in interlines:
+            inter = ml_geom.intersection(self.feats[line].geometry())
+            if inter.wkbType() == 1:
+                yield inter
+            elif inter.wkbType() == 4:
+                for i in inter.geometry().asMultiPoint():
+                    yield i
+        for p in ml_geom.asPolyline():
+            yield p
 
     def segment(self):
 
         # TODO: if postgis - run function
         # progress emitted by break_segm
-        break_features = list(itertools.chain.from_iterable(map(lambda (ml_id, ml_feat): self.break_segm(ml_id, ml_feat), self.feats.items())))
+        res = map(lambda (ml_id, ml_feat): self.break_segm(ml_id, ml_feat), self.feats.items())
 
-        return break_features, self.break_points, self.invalid_unlinks, self.stubs_points
+        # exclude stubs
+        if self.stub_ratio:
+            res = map(lambda (break_feats, cross_p, end_segms): clean_stubs(), res)
+            # return break_feats, cross_p, stubs
+
+        return res #, self.break_points, self.invalid_unlinks, self.stubs_points
 
     def copy_feat(self,f, geom):
         copy_feat = QgsFeature(f)
