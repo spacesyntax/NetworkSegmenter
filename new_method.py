@@ -1,8 +1,5 @@
 import itertools
 from PyQt4.QtCore import QObject, pyqtSignal, QVariant
-from itertools import groupby
-from operator import itemgetter
-import math
 
 # read graph - as feat
 class segmentor(QObject):
@@ -23,7 +20,6 @@ class segmentor(QObject):
         self.feats = {}
         self.break_points = {}
         self.break_feats = []
-        self.unlinks_points = {}
 
         self.id = 0
         self.step = 1/self.layer.featureCount()
@@ -33,7 +29,8 @@ class segmentor(QObject):
         self.step = 1/len(res)
 
         # feats need to be created - after iter
-        self.unlink_points = {ml_id: [] for ml_id in self.feats.keys()}
+        self.unlinks_points = {ml_id: [] for ml_id in self.feats.keys()}
+        self.invalid_unlinks = []
         self.stubs_points = []
 
         # unlink validity
@@ -49,53 +46,60 @@ class segmentor(QObject):
                        self.spIndex.intersects(unlink_geom_buffer.boundingBox()))
         if unlink_geom.wkbType() == 3:
             unlink_geom = self.feats[lines[0]].geometry().intersection(self.feats[lines[1]].geometry())
-
         if len(lines) == 2:
-            for i in lines:
-                try:
-                    self.unlinks_points[i[0]].append(i[1])
-                except KeyError:
-                    self.unlinks_points[i[0]] = [i[1]]
+            self.unlinks_points[lines[0]].append(lines[1])
+            self.unlinks_points[lines[1]].append(lines[0])
         else:
             self.invalid_unlinks.append(unlink_geom)
         return True
 
-    # every line explode and find crossings
-    def break_segm(self, ml_id, ml_feat):
-
-        self.progress.emit(self.step)
-
-        ml_geom = ml_feat.geometry()
-        interlines = filter(lambda i:  ml_geom.intersects(self.feats[i].geometry()), self.spIndex.intersects(ml_geom.boundingBox()) - self.unlinks_points[ml_id])
-        cross_p = sorted(map(lambda i: (ml_geom.lineLocatePoint(i), i.asPoint()), self.load_point_iter(interlines, ml_geom)))  # same id intersection is line
-        cross_p = zip(*cross_p)[1]
-        break_feats = map(lambda pair: self.copy_feat(ml_feat, QgsGeometry.fromPolyline(list(pair))), zip(cross_p[:-1], cross_p[1:]))
-        end_segms = [QgsGeometry.fromPolyline([cross_p[0], ml_geom.vertexAt(1)]), QgsGeometry.fromPolyline([ml_geom.vertexAt(-2), cross_p[-1]])]
-        return break_feats, cross_p, end_segms
-
-    def load_point_iter(self, interlines, ml_geom):
+    # for every line explode and crossings
+    def point_iter(self, interlines, ml_geom):
         for line in interlines:
             inter = ml_geom.intersection(self.feats[line].geometry())
             if inter.wkbType() == 1:
-                yield inter
+                yield  ml_geom.lineLocatePoint(inter), inter.asPoint()
             elif inter.wkbType() == 4:
                 for i in inter.geometry().asMultiPoint():
-                    yield i
+                    yield i.lineLocatePoint(inter), i
         for p in ml_geom.asPolyline():
-            yield p
+            yield ml_geom.lineLocatePoint(QgsGeometry.fromPoint(p)), p
 
     def segment(self):
 
         # TODO: if postgis - run function
-        # progress emitted by break_segm
-        res = map(lambda (ml_id, ml_feat): self.break_segm(ml_id, ml_feat), self.feats.items())
+        # progress emitted by break_segm ??
+
+        interlines_list = map(lambda feat: (feat, self.spIndex.intersects(feat.geometry().boundingBox())), self.feats.values())
+        interlines_list = map(lambda (feat, interlines): (feat, filter(lambda line: feat.geometry().distance(self.feats[line].geometry()) <= 0, interlines)),
+                              interlines_list)
+        interlines_list = map(lambda (feat, interlines): (feat, (set(interlines) - set(self.unlinks_points[feat.id()]))), interlines_list)
+        cross_p_list = map(lambda (feat, interlines): (feat, [p for (factor, p) in sorted(set(self.point_iter(interlines, feat.geometry())))]), interlines_list)
 
         # exclude stubs
+        self.stubs = []
         if self.stub_ratio:
-            res = map(lambda (break_feats, cross_p, end_segms): clean_stubs(), res)
-            # return break_feats, cross_p, stubs
+            cross_p_list =  map(lambda (start, end, cross_p, feat): (feat, cross_p[start:end]), self.stubs_iter(cross_p_list))
 
-        return res #, self.break_points, self.invalid_unlinks, self.stubs_points
+        break_feats = map(lambda (feat, cross_p): [self.copy_feat(feat, QgsGeometry.fromPolyline(list(pair))) for pair in zip(cross_p[:-1], cross_p[1:])], cross_p_list)
+
+        return list(itertools.chain.from_iterable(break_feats)), list(itertools.chain.from_iterable(cross_p_list)), self.invalid_unlinks, self.stubs
+
+    def stubs_iter(self, cross_p_list):
+        for feat, cross_p in cross_p_list:
+            f_geom = feat.geometry()
+            start, end = 0, len(cross_p)
+            start_p, end_p = f_geom.asPolyline()[0], f_geom.asPolyline()[-1]
+            start_geom, end_geom = QgsGeometry.fromPoint(start_p), QgsGeometry.fromPoint(end_p)
+            if QgsDistanceArea().measureLine(start_p, cross_p[1])/ QgsDistanceArea().measureLine(start_p, f_geom.asPolyline()[1]) <= 0.4 \
+                    and len(filter(lambda line: self.feats[line].geometry().distance(start_geom) <= 0 , self.spIndex.intersects(start_geom.boundingBox()))) == 1:
+                start += 1
+                self.stubs.append(cross_p[0])
+            if QgsDistanceArea().measureLine(end_p, cross_p[-2])/ QgsDistanceArea().measureLine(f_geom.asPolyline()[-2], end_p) <= 0.4 \
+                    and len(filter(lambda line: self.feats[line].geometry().distance(end_geom) <= 0 , self.spIndex.intersects(end_geom.boundingBox()))) == 1:
+                end += (-1)
+                self.stubs.append(cross_p[-1])
+            yield start, end, cross_p, feat
 
     def copy_feat(self,f, geom):
         copy_feat = QgsFeature(f)
@@ -128,3 +132,5 @@ class segmentor(QObject):
                     self.feats[id] = ml_feat
                     id += 1
                     yield ml_feat
+    def kill(self):
+        self.killed = True
