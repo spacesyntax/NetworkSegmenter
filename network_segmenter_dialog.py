@@ -180,7 +180,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
     def get_settings(self):
         settings = {'input': self.getNetwork(), 'unlinks': self.getUnlinks(), 'output': self.getOutput(), 'stub_ratio': self.getStubRatio(),
-                    'breakages': self.get_breakages(), 'buffer': self.getBuffer(), 'output_type': self.get_output_type()}
+                    'log': self.get_breakages(), 'buffer': self.getBuffer(), 'output_type': self.get_output_type()}
         return settings
 
     def get_dbsettings(self):

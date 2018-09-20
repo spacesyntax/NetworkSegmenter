@@ -1,86 +1,29 @@
-execfile(u'/Users/joe/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
-execfile(u'/Users/joe/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
-execfile(u'/Users/joe/NetworkSegmenter/sEdge.py'.encode('utf-8'))
-#execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/segment_tools.py'.encode('mbcs'))
-#execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/utilityFunctions.py'.encode('mbcs'))
-layer_name = 'axial_map_m25'
+execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
+execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
 
 import time
+execfile(u'/Users/joe/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
+execfile(u'/Users/joe/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
 
-#layer_name = 'invalid'
-unlinks_layer_name = 'axial_map_m25_u'
-path = None
-layer = getLayerByName(layer_name)
-crs = layer.dataProvider().crs()
-encoding = layer.dataProvider().encoding()
-geom_type = layer.dataProvider().geometryType()
+start_time = time.time()
+layer = getLayerByName('axial_map_m25')
+unlinks = getLayerByName('axial_map_m25_u')
+stub_ratio = 0.4
+buffer = 0
+# my_segmentor = segmentor(layer, None, stub_ratio, None)
+my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer)
 
-unlinks_layer = getLayerByName(unlinks_layer_name)
-flds = getQFields(layer)
+br, cross_p, invalid_unlinks, stubs  = my_segmentor.segment()
+print 'process time', time.time() - start_time
 
-explGraph = sGraph(flds)
-
-start = time.time()
-explGraph.addexpledges(explGraph.iter_from_layer(layer), layer.featureCount())
-end = time.time()
-print 'Graph build', end - start
-
-len(explGraph.sEdges)
-
-exploded_layer = to_shp(path, map(lambda sedge: sedge.qgsFeat(), explGraph.sEdges.values()), explGraph.sEdgesFields, crs, 'exploded layer', encoding, geom_type)
-QgsMapLayerRegistry.instance().addMapLayer(exploded_layer)
-
-explGraph.getBreakPoints = True
-explGraph.stub_ratio = 40
-explGraph.hasunlinks = True
-
-#for i in explGraph.sEdges.values():
-#    break
-
-# explGraph.generatesegments(i)
-
-start = time.time()
-segments, breakages = explGraph.segmentedges(unlinks_layer, None) #todo test buffer_threshold
-end = time.time()
-print 'Graph explode', end - start
-
-import itertools
-segmented = to_shp(path, list(itertools.chain.from_iterable(segments)), explGraph.sEdgesFields, crs, 'segmented', encoding, geom_type)
+segmented = to_layer(br, layer.crs(), layer.dataProvider().encoding(), layer.dataProvider().geometryType(), "shapefile", '/Users/joe/segmented.shp', 'segmented')
 QgsMapLayerRegistry.instance().addMapLayer(segmented)
+print 'process time', time.time() - start_time
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-to_dblayer('geodb', 'postgres', '192.168.1.10', '5432', 'spaces2017', 'gbr_exeter', 'cleaned',  br.layer_fields, result, crs)
-
-final = to_shp(path, result, fields, crs, 'f', encoding, geom_type )
-QgsMapLayerRegistry.instance().addMapLayer(final)
-
-
-layer = iface.mapCanvas().currentLayer()
-qgs_flds = [QgsField(i.name(), i.type()) for i in layer.dataProvider().fields()]
-postgis_flds = qgs_to_postgis_fields(qgs_flds, arrays = False)
-
+# old : 1 m 30 s
+# now: 1 m 05 s
+# PST: 0 m 12 s
 
 

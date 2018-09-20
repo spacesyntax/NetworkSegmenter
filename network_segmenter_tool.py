@@ -30,6 +30,7 @@ import time
 
 from network_segmenter_dialog import NetworkSegmenterDialog
 from segment_tools import *  # better give these a name to make it explicit to which module the methods belong
+from utilityFunctions import *
 
 # Import the debug library - required for the cleaning class in separate thread
 # set is_debug to False in release version
@@ -79,7 +80,7 @@ class NetworkSegmenterTool(QObject):
 
         self.settings = None
 
-        print 'set',  self.settings
+        print 'settings',  self.settings
 
         # show the dialog
         self.dlg.show()
@@ -171,7 +172,6 @@ class NetworkSegmenterTool(QObject):
             self.settings.update(db_settings)
 
         if self.settings['input']:
-
             segmenting = self.segment(self.settings, self.iface)
             # start the segmenting in a new thread
             thread = QThread()
@@ -188,7 +188,8 @@ class NetworkSegmenterTool(QObject):
 
             self.thread.start()
 
-            if is_debug: print 'started'
+            #if is_debug:
+            print 'started'
         else:
             self.giveMessage('Missing user input!', QgsMessageBar.INFO)
             return
@@ -207,28 +208,33 @@ class NetworkSegmenterTool(QObject):
         geom_type = layer.dataProvider().geometryType()
         # create the segmenting results layers
         try:
+            print 'tried'
             # create clean layer
-            if output_type == 'shp':
-                final = to_shp(path, ret[0][0], ret[0][1], crs, 'segmented',  encoding, geom_type)
-            elif output_type == 'memory':
-                final = to_shp(None, ret[0][0], ret[0][1], crs, 'segmented',  encoding, geom_type)
-            else:
-                final = to_dblayer(self.settings['dbname'], self.settings['user'], self.settings['host'],
-                                   self.settings['port'], self.settings['password'], self.settings['schema'],
-                                   self.settings['table_name'], ret[0][1], ret[0][0], crs)
-            if final:
-                QgsMapLayerRegistry.instance().addMapLayer(final)
-                final.updateExtents()
+            #segmented = to_layer(ret[0], crs, encoding, geom_type, output_type, path, layer_name + '_segmented')
+            #if segmented:
+            #    QgsMapLayerRegistry.instance().addMapLayer(segmented)
+            #    segmented.updateExtents()
             # create unlinks layer
-            if self.settings['breakages']:
-                break_Points = to_shp(None, [getQgsFeat(pgeom, i) for i, pgeom in enumerate(ret[1][0])], ret[1][1], crs, 'break points', encoding, 0)
-                if break_Points:
-                    QgsMapLayerRegistry.instance().addMapLayer(break_Points)
-                    break_Points.updateExtents()
+            #if self.settings['log']:
+            #    invalid_unlink_prototype = QgsFeature()
+            #    invalid_unlink_prototype.setAttributes(['invalid unlink'])
+            #    invalid_unlink_prototype.setGeometry(QgsGeometry())
 
-            self.iface.mapCanvas().refresh()
+            #    cross_p_prototype = QgsFeature()
+            #    cross_p_prototype.setAttributes(['segmented points'])
+            #    cross_p_prototype.setGeometry(QgsGeometry())
 
-            self.giveMessage('Process ended successfully!', QgsMessageBar.INFO)
+            #    stub_p_prototype = QgsFeature()
+            #    stub_p_prototype.setAttributes(['stub'])
+            #    stub_p_prototype.setGeometry(QgsGeometry())
+
+                #if break_Points:
+                #    QgsMapLayerRegistry.instance().addMapLayer(break_Points)
+                #    break_Points.updateExtents()
+
+            #self.iface.mapCanvas().refresh()
+
+            #self.giveMessage('Process ended successfully!', QgsMessageBar.INFO)
 
         except Exception, e:
             # notify the user that sth went wrong
@@ -308,52 +314,33 @@ class NetworkSegmenterTool(QObject):
                 # segmenting settings
                 layer_name = self.settings['input']
                 unlinks_layer_name = self.settings['unlinks']
-                # project settings
                 layer = getLayerByName(layer_name)
-                unlinks_layer = getLayerByName(unlinks_layer_name)
+                unlinks = getLayerByName(unlinks_layer_name)
+                stub_ratio = self.settings['stub_ratio']
+                buffer = self.settings['buffer']
 
-                flds = getQFields(layer)
-                self.explGraph = sGraph(flds)
+                print 'settings'
 
-                if self.explGraph.killed is True: return
+                if self.my_segmentor.killed is True: return
 
-                step = 30 / float(layer.featureCount()) # TODO: fix if empty
-                self.explGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+                #self.my_segmentor.progress.connect(lambda incr=self.add_step(self.my_segmentor.step): self.segm_progress.emit(incr))
 
-                self.explGraph.addexpledges(self.explGraph.iter_from_layer(layer), layer.featureCount())
-                #except Exception, e: # forward the exception upstream
-                #    self.error.emit(e, traceback.format_exc())
+                print '1'
+                self.my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer)
 
-                self.segm_progress.emit(30)
-                self.total = 30
+                #self.my_segmentor.progress.disconnect()
 
-                #try:
-                #    num_expl_feat = self.explGraph.atEdgesCounter
-                #except ZeroDivisionError:  # fix division by 0
-                #    num_expl_feat = 1
-                #step = 65 / float(num_expl_feat)
+                #self.my_segmentor.progress.connect(lambda incr=self.add_step(self.my_segmentor.step): self.segm_progress.emit(incr))
+                print '2'
+                br, cross_p, invalid_unlinks, stubs = self.my_segmentor.segment()
 
-                #self.explGraph.progress.disconnect()
-                #self.explGraph.progress.connect(lambda incr=self.add_step(step): self.segm_progress.emit(incr))
+                #self.my_segmentor.progress.disconnect()
 
-                #self.explGraph.getBreakPoints = self.settings['breakages']
-                #self.explGraph.stub_ratio = self.settings['stub_ratio']
-                #try:
-                #    segments, breakages = self.explGraph.segmentedges(unlinks_layer, self.settings['buffer'])
-                #except Exception, e:  # forward the exception upstream
-                #    self.error.emit(e, traceback.format_exc())
-
-                #self.explodedGraph.progress.disconnect()
-
-                #if self.segm_killed is True or self.explGraph.killed is True: return
-
-                #fields = self.explGraph.sEdgesFields
-                # if is_debug:
                 #print "survived!"
 
                 self.segm_progress.emit(95)
                 # return cleaned data, errors and unlinks
-                ret = (([], []), ([], [QgsField('id', QVariant.Int)]))
+                #ret = (br, cross_p, invalid_unlinks, stubs)
 
             self.finished.emit(ret)
 
