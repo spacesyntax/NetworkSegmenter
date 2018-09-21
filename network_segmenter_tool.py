@@ -22,7 +22,7 @@
 """
 import datetime
 
-from PyQt4.QtCore import QThread, QSettings
+from PyQt4.QtCore import QThread, QSettings, QObject, pyqtSignal, QVariant
 from qgis.core import *
 from qgis.gui import *
 from qgis.utils import *
@@ -41,7 +41,6 @@ try:
 except ImportError, e:
     has_pydevd = False
     is_debug = False
-
 
 class NetworkSegmenterTool(QObject):
 
@@ -65,8 +64,8 @@ class NetworkSegmenterTool(QObject):
 
         # setup GUI signals
         self.dlg.closingPlugin.connect(self.unloadGUI)
-        self.dlg.runButton.clicked.connect(self.startSegmenting)
-        self.dlg.cancelButton.clicked.connect(self.killSegmenting)
+        self.dlg.runButton.clicked.connect(self.startWorker)
+        self.dlg.cancelButton.clicked.connect(self.killWorker)
 
         # add layers to dialog
         self.updateLayers()
@@ -90,8 +89,8 @@ class NetworkSegmenterTool(QObject):
     def unloadGUI(self):
         if self.dlg:
             self.dlg.closingPlugin.disconnect(self.unloadGUI)
-            self.dlg.runButton.clicked.disconnect(self.startSegmenting)
-            self.dlg.cancelButton.clicked.disconnect(self.killSegmenting)
+            self.dlg.runButton.clicked.disconnect(self.startWorker)
+            self.dlg.cancelButton.clicked.disconnect(self.killWorker)
             self.settings = None
         try:
             self.legend.itemAdded.disconnect(self.updateLayers)
@@ -150,51 +149,48 @@ class NetworkSegmenterTool(QObject):
         layers = self.getpntplgLayers()
         self.dlg.popUnlinksLayers(layers)
 
-    # SOURCE: Network Segmenter https://github.com/OpenDigitalWorks/NetworkSegmenter
-    # SOURCE: https://snorfalorpagus.net/blog/2013/12/07/multithreading-in-qgis-python-plugins/
-
     def giveMessage(self, message, level):
         # Gives warning according to message
         self.iface.messageBar().pushMessage("Network segmenter: ", "%s" % (message), level, duration=5)
 
-    def segmentingError(self, e, exception_string):
+    def workerError(self, e, exception_string):
         # Gives error according to message
         QgsMessageLog.logMessage('Segmenting thread raised an exception: %s' % exception_string, level=QgsMessageLog.CRITICAL)
         self.dlg.close()
 
-    def startSegmenting(self):
-        print 'started'
+    def startWorker(self):
+        print 'before started'
         self.dlg.segmentingProgress.reset()
         self.settings = self.dlg.get_settings()
-        print 'set', self.settings
+        print 'settings', self.settings
         if self.settings['output_type'] == 'postgis':
             db_settings = self.dlg.get_dbsettings()
             self.settings.update(db_settings)
 
         if self.settings['input']:
-            segmenting = self.segment(self.settings, self.iface)
+            segmenting = self.Worker(self.settings , self.iface)
             # start the segmenting in a new thread
             thread = QThread()
             segmenting.moveToThread(thread)
-            segmenting.finished.connect(self.segmentingFinished)
-            segmenting.error.connect(self.segmentingError)
+            segmenting.finished.connect(self.workerFinished)
+            segmenting.error.connect(self.workerError)
             segmenting.warning.connect(self.giveMessage)
             segmenting.segm_progress.connect(self.dlg.segmentingProgress.setValue)
 
             thread.started.connect(segmenting.run)
 
+            thread.start()
+
             self.thread = thread
             self.segmenting = segmenting
 
-            self.thread.start()
-
             #if is_debug:
-            print 'started'
+            print 'has started'
         else:
             self.giveMessage('Missing user input!', QgsMessageBar.INFO)
             return
 
-    def segmentingFinished(self, ret):
+    def workerFinished(self, ret):
         #if is_debug:
         print 'trying to finish'
         # get segmenting settings
@@ -207,26 +203,16 @@ class NetworkSegmenterTool(QObject):
         encoding = layer.dataProvider().encoding()
         geom_type = layer.dataProvider().geometryType()
         # create the segmenting results layers
-        try:
-            print 'tried'
+
+        #try:
+
             # create clean layer
             #segmented = to_layer(ret[0], crs, encoding, geom_type, output_type, path, layer_name + '_segmented')
             #if segmented:
             #    QgsMapLayerRegistry.instance().addMapLayer(segmented)
             #    segmented.updateExtents()
             # create unlinks layer
-            #if self.settings['log']:
-            #    invalid_unlink_prototype = QgsFeature()
-            #    invalid_unlink_prototype.setAttributes(['invalid unlink'])
-            #    invalid_unlink_prototype.setGeometry(QgsGeometry())
-
-            #    cross_p_prototype = QgsFeature()
-            #    cross_p_prototype.setAttributes(['segmented points'])
-            #    cross_p_prototype.setGeometry(QgsGeometry())
-
-            #    stub_p_prototype = QgsFeature()
-            #    stub_p_prototype.setAttributes(['stub'])
-            #    stub_p_prototype.setGeometry(QgsGeometry())
+            #if self.settings['errors']:
 
                 #if break_Points:
                 #    QgsMapLayerRegistry.instance().addMapLayer(break_Points)
@@ -236,15 +222,25 @@ class NetworkSegmenterTool(QObject):
 
             #self.giveMessage('Process ended successfully!', QgsMessageBar.INFO)
 
-        except Exception, e:
+        #except Exception, e:
             # notify the user that sth went wrong
-            self.segmenting.error.emit(e, traceback.format_exc())
-            self.giveMessage('Something went wrong! See the message log for more information', QgsMessageBar.CRITICAL)
+        #    self.segmenting.error.emit(e, traceback.format_exc())
+        #    self.giveMessage('Something went wrong! See the message log for more information', QgsMessageBar.CRITICAL)
 
         # clean up the worker and thread
+        self.segmenting.finished.disconnect(self.workerFinished)
+        self.segmenting.error.disconnect(self.workerError)
+        self.segmenting.warning.disconnect(self.giveMessage)
+        self.segmenting.segm_progress.disconnect(self.dlg.segmentingProgress.setValue)
+
+        self.thread.deleteLater()
         self.thread.quit()
         self.thread.wait()
         self.thread.deleteLater()
+
+        if ret is not None:
+            self.iface.messageBar().pushMessage(
+                'The total area of name is area.')
 
         if is_debug: print 'thread running ', self.thread.isRunning()
         if is_debug: print 'has finished ', self.thread.isFinished()
@@ -256,23 +252,27 @@ class NetworkSegmenterTool(QObject):
             self.dlg.segmentingProgress.reset()
             self.dlg.close()
 
-    def killSegmenting(self):
+    def killWorker(self):
         #if is_debug:
         print 'trying to cancel'
         # add emit signal to segmenttool or mergeTool only to stop the loop
         if self.segmenting:
-
+            #try:
+            #    dummy = self.segmenting.explodedGraph
+            #    del dummy
+            self.segmenting.killed = True
             try:
-                dummy = self.segmenting.explodedGraph
-                del dummy
-                self.segmenting.explodedGraph.killed = True
-            except AttributeError:
+                self.segmenting.my_segmentor.kill()
+            except e:
                 pass
+            #except AttributeError:
+            #    pass
             # Disconnect signals
-            self.segmenting.finished.disconnect(self.segmentingFinished)
-            self.segmenting.error.disconnect(self.segmentingError)
+            self.segmenting.finished.disconnect(self.workerFinished)
+            self.segmenting.error.disconnect(self.workerError)
             self.segmenting.warning.disconnect(self.giveMessage)
             self.segmenting.segm_progress.disconnect(self.dlg.segmentingProgress.setValue)
+            ## self.segmenting.my_segmentor.progress.disconnect
             # Clean up thread and analysis
             self.segmenting.kill()
             self.segmenting.deleteLater()
@@ -285,9 +285,7 @@ class NetworkSegmenterTool(QObject):
         else:
             self.dlg.close()
 
-
-    # SOURCE: https://snorfalorpagus.net/blog/2013/12/07/multithreading-in-qgis-python-plugins/
-    class segment(QObject):
+    class Worker(QObject):
 
         # Setup signals
         finished = pyqtSignal(object)
@@ -299,12 +297,15 @@ class NetworkSegmenterTool(QObject):
         def __init__(self, settings, iface):
             QObject.__init__(self)
             self.settings = settings
+            self.segm_killed = False
             self.iface = iface
-            self.total =0
+            self.totalpr = 0
+            self.my_segmentor = None
+            # print ' class initiated'
 
         def add_step(self,step):
-            self.total += step
-            return self.total
+            self.totalpr += step
+            return self.totalpr
 
         def run(self):
             if has_pydevd and is_debug:
@@ -318,29 +319,22 @@ class NetworkSegmenterTool(QObject):
                 unlinks = getLayerByName(unlinks_layer_name)
                 stub_ratio = self.settings['stub_ratio']
                 buffer = self.settings['buffer']
+                errors = self.settings['errors']
 
-                print 'settings'
+                # print layer, unlinks, stub_ratio, buffer
+                self.segm_progress.emit(5)
+                self.my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer, errors)
 
-                if self.my_segmentor.killed is True: return
+                # if self.my_segmentor.killed is True: return
 
-                #self.my_segmentor.progress.connect(lambda incr=self.add_step(self.my_segmentor.step): self.segm_progress.emit(incr))
+                # self.my_segmentor.progress.connect(lambda incr=self.add_step(self.my_segmentor.step*80): self.segm_progress.emit(incr))
 
-                print '1'
-                self.my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer)
-
-                #self.my_segmentor.progress.disconnect()
-
-                #self.my_segmentor.progress.connect(lambda incr=self.add_step(self.my_segmentor.step): self.segm_progress.emit(incr))
-                print '2'
-                br, cross_p, invalid_unlinks, stubs = self.my_segmentor.segment()
-
+                ret = self.my_segmentor.segment()
                 #self.my_segmentor.progress.disconnect()
 
                 #print "survived!"
 
                 self.segm_progress.emit(95)
-                # return cleaned data, errors and unlinks
-                #ret = (br, cross_p, invalid_unlinks, stubs)
 
             self.finished.emit(ret)
 

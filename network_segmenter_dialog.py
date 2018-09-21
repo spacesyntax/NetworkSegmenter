@@ -145,14 +145,13 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         if buf_value != 0:
             return self.bufferSpinBox.value()
         else:
-            return None
+            return 0 #TODO or none?
 
     def disable_browse(self):
         if self.memoryRadioButton.isChecked():
             self.browseCleaned.setDisabled(True)
         else:
             self.browseCleaned.setDisabled(False)
-
 
     def get_breakages(self):
         return self.breakagesCheckBox.isChecked()
@@ -180,7 +179,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
     def get_settings(self):
         settings = {'input': self.getNetwork(), 'unlinks': self.getUnlinks(), 'output': self.getOutput(), 'stub_ratio': self.getStubRatio(),
-                    'log': self.get_breakages(), 'buffer': self.getBuffer(), 'output_type': self.get_output_type()}
+                    'errors': self.get_breakages(), 'buffer': self.getBuffer(), 'output_type': self.get_output_type()}
         return settings
 
     def get_dbsettings(self):
