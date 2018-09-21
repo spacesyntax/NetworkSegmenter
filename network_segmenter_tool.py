@@ -260,11 +260,6 @@ class NetworkSegmenterTool(QObject):
             #try:
             #    dummy = self.segmenting.explodedGraph
             #    del dummy
-            self.segmenting.killed = True
-            try:
-                self.segmenting.my_segmentor.kill()
-            except e:
-                pass
             #except AttributeError:
             #    pass
             # Disconnect signals
@@ -272,9 +267,9 @@ class NetworkSegmenterTool(QObject):
             self.segmenting.error.disconnect(self.workerError)
             self.segmenting.warning.disconnect(self.giveMessage)
             self.segmenting.segm_progress.disconnect(self.dlg.segmentingProgress.setValue)
-            ## self.segmenting.my_segmentor.progress.disconnect
             # Clean up thread and analysis
             self.segmenting.kill()
+            self.segmenting.my_segmentor.kill()
             self.segmenting.deleteLater()
             self.thread.quit()
             self.thread.wait()

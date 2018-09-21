@@ -26,7 +26,7 @@ class segmentor(QObject):
 
         # load graph
         res = map(lambda feat: self.spIndex.insertFeature(feat), self.feat_iter(layer))
-        self.step = 1/len(res)
+        self.step = 2/len(res)
 
         # feats need to be created - after iter
         self.unlinks_points = {ml_id: [] for ml_id in self.feats.keys()}
@@ -87,6 +87,8 @@ class segmentor(QObject):
 
     def break_feats_iter(self, cross_p_list):
         for idx, cross_p in enumerate(cross_p_list):
+            if self.killed:
+                break
 
             self.progress.emit(self.step)
 
@@ -95,11 +97,18 @@ class segmentor(QObject):
                 self.id += 1
                 yield feat, QgsGeometry.fromPolyline(list(pair)), self.id
 
+    def list_iter(self, any_list):
+        for item in any_list:
+            if self.killed:
+                break
+            self.progress.emit(self.step)
+            yield item
+
     def segment(self):
 
         # TODO: if postgis - run function
         # progress emitted by break_segm & break_feats_iter
-        cross_p_list = map(lambda feat: self.break_segm(feat), self.feats.values())
+        cross_p_list = map(lambda feat: self.break_segm(feat), self.list_iter(self.feats.values()))
         segmented_feats = map(lambda (feat, geom, fid): self.copy_feat(feat, geom, fid), self.break_feats_iter(cross_p_list))
 
         break_point_feats, invalid_unlink_point_feats, stubs_point_feats = [], [], []
@@ -156,7 +165,9 @@ class segmentor(QObject):
     def feat_iter(self, layer):
         id = 0
         for f in layer.getFeatures():
+
             #self.progress.emit(self.step)
+
             f_geom = f.geometry()
             if f_geom.length() > 0:
                 if self.killed is True:
