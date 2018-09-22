@@ -75,6 +75,7 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
 
     elif layer_type == 'shapefile':
         file_writer = QgsVectorFileWriter(path, encoding, fields, geom_type, crs, "ESRI Shapefile")
+        print path, encoding, fields, geom_type, crs
         if file_writer.hasError() != QgsVectorFileWriter.NoError:
             print "Error when creating shapefile: ", file_writer.errorMessage()
         del file_writer

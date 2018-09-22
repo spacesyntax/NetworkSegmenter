@@ -21,6 +21,8 @@
  ***************************************************************************/
 """
 import datetime
+import traceback
+
 
 from PyQt4.QtCore import QThread, QSettings, QObject, pyqtSignal, QVariant
 from qgis.core import *
@@ -70,6 +72,9 @@ class NetworkSegmenterTool(QObject):
         # add layers to dialog
         self.updateLayers()
         self.updateUnlinksLayers()
+
+        self.dlg.outputCleaned.setText(self.getActiveLayers()[0] + "_seg")
+        self.dlg.inputCombo.currentIndexChanged.connect(self.updateOutputName)
 
         # setup legend interface signals
         self.legend.itemAdded.connect(self.updateLayers)
@@ -137,6 +142,9 @@ class NetworkSegmenterTool(QObject):
         layers = self.getActiveLayers()
         self.dlg.popActiveLayers(layers)
 
+    def updateOutputName(self):
+        self.dlg.outputCleaned.setText(self.dlg.inputCombo.currentText() + "_seg")
+
     def getpntplgLayers(self):
         layers_list = []
         for layer in self.iface.legendInterface().layers():
@@ -199,33 +207,7 @@ class NetworkSegmenterTool(QObject):
         output_type = self.settings['output_type']
         #  get settings from layer
         layer = getLayerByName(layer_name)
-        crs = layer.dataProvider().crs()
-        encoding = layer.dataProvider().encoding()
-        geom_type = layer.dataProvider().geometryType()
         # create the segmenting results layers
-
-        #try:
-
-            # create clean layer
-            #segmented = to_layer(ret[0], crs, encoding, geom_type, output_type, path, layer_name + '_segmented')
-            #if segmented:
-            #    QgsMapLayerRegistry.instance().addMapLayer(segmented)
-            #    segmented.updateExtents()
-            # create unlinks layer
-            #if self.settings['errors']:
-
-                #if break_Points:
-                #    QgsMapLayerRegistry.instance().addMapLayer(break_Points)
-                #    break_Points.updateExtents()
-
-            #self.iface.mapCanvas().refresh()
-
-            #self.giveMessage('Process ended successfully!', QgsMessageBar.INFO)
-
-        #except Exception, e:
-            # notify the user that sth went wrong
-        #    self.segmenting.error.emit(e, traceback.format_exc())
-        #    self.giveMessage('Something went wrong! See the message log for more information', QgsMessageBar.CRITICAL)
 
         # clean up the worker and thread
         self.segmenting.finished.disconnect(self.workerFinished)
@@ -239,9 +221,26 @@ class NetworkSegmenterTool(QObject):
         self.thread.wait()
         self.thread.deleteLater()
 
-        if ret is not None:
-            self.iface.messageBar().pushMessage(
-                'The total area of name is area.')
+        if ret:
+            break_lines, break_points = ret
+            segmented = to_layer(break_lines, layer.crs(), layer.dataProvider().encoding(),
+                                 layer.dataProvider().geometryType(), output_type, path,
+                                 layer_name + '_seg')
+            #if segmented:
+            QgsMapLayerRegistry.instance().addMapLayer(segmented)
+            segmented.updateExtents()
+            if self.settings['errors']:
+                errors = to_layer(break_points, layer.crs(), layer.dataProvider().encoding(), 1, output_type,
+                              path[:-4] + '_break_points.shp', 'break points')
+                QgsMapLayerRegistry.instance().addMapLayer(errors)
+                # TODO: add symbology
+
+            self.giveMessage('Process ended successfully!', QgsMessageBar.INFO)
+
+        else:
+            # notify the user that sth went wrong
+            self.segmenting.error.emit(e, traceback.format_exc())
+            self.giveMessage('Something went wrong! See the message log for more information', QgsMessageBar.CRITICAL)
 
         if is_debug: print 'thread running ', self.thread.isRunning()
         if is_debug: print 'has finished ', self.thread.isFinished()
@@ -258,12 +257,6 @@ class NetworkSegmenterTool(QObject):
         print 'trying to cancel'
         # add emit signal to segmenttool or mergeTool only to stop the loop
         if self.segmenting:
-            #try:
-            #    dummy = self.segmenting.explodedGraph
-            #    del dummy
-            #except AttributeError:
-            #    pass
-            # Disconnect signals
             self.segmenting.finished.disconnect(self.workerFinished)
             self.segmenting.error.disconnect(self.workerError)
             self.segmenting.warning.disconnect(self.giveMessage)
@@ -303,7 +296,8 @@ class NetworkSegmenterTool(QObject):
             if has_pydevd and is_debug:
                 pydevd.settrace('localhost', port=53100, stdoutToServer=True, stderrToServer=True, suspend=False)
             ret = None
-            if self.settings:
+            #if self.settings:
+            try:
                 # segmenting settings
                 layer_name = self.settings['input']
                 unlinks_layer_name = self.settings['unlinks']
@@ -319,14 +313,16 @@ class NetworkSegmenterTool(QObject):
                 self.my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer, errors)
 
                 self.my_segmentor.progress.connect(self.segm_progress.emit)
+                # self.my_segmentor.error.connect(self.error.
 
                 ret = self.my_segmentor.segment()
 
                 self.my_segmentor.progress.disconnect()
 
-                #print "survived!"
+            except Exception, e:
+                self.error.emit(e, traceback.format_exc())
 
-                self.segm_progress.emit(95)
+            #print "survived!"
 
             self.finished.emit(ret)
 

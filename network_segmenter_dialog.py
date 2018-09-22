@@ -89,7 +89,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.shpRadioButton.clicked.connect(self.setShpOutput)
 
         if self.memoryRadioButton.isChecked():
-            self.outputCleaned.setText('segmented')
+            self.outputCleaned.setText(self.getNetwork() + "_seg")
 
     def closeEvent(self, event):
         self.closingPlugin.emit()
@@ -105,10 +105,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
             return self.unlinksCombo.currentText()
 
     def getOutput(self):
-        if self.outputCleaned.text() != 'segmented':
-            return self.outputCleaned.text()
-        else:
-            return None
+        return self.outputCleaned.text()
 
     def popActiveLayers(self, layers_list):
         self.inputCombo.clear()
@@ -159,13 +156,13 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
     # TODO: return layer_name + '_segm'
     def update_output_text(self):
         if self.memoryRadioButton.isChecked():
-            return "segmented"
+            return self.getNetwork() + "_seg"
         else:
             return
 
     def get_output_type(self):
         if self.shpRadioButton.isChecked():
-            return 'shp'
+            return 'shapefile'
         elif self.postgisRadioButton.isChecked():
             return 'postgis'
         else:
@@ -188,7 +185,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
     def setOutput(self):
         if self.shpRadioButton.isChecked():
-            self.file_name = QtGui.QFileDialog.getSaveFileName(self, "Save output file ", "segmented", '*.shp')
+            self.file_name = QtGui.QFileDialog.getSaveFileName(self, "Save output file ", self.getNetwork() + "_seg", '*.shp')
             if self.file_name:
                 self.outputCleaned.setText(self.file_name)
             else:
@@ -214,7 +211,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
     def setTempOutput(self):
         self.disable_browse()
-        temp_name = 'segmented'
+        temp_name = self.getNetwork() + "_seg"
         self.outputCleaned.setText(temp_name)
         self.outputCleaned.setDisabled(False)
 
