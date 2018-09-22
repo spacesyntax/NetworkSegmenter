@@ -1,6 +1,6 @@
 import itertools
 from PyQt4.QtCore import QObject, pyqtSignal, QVariant
-from qgis.core import QgsSpatialIndex, QgsGeometry, QgsDistanceArea, QgsFeature
+from qgis.core import QgsSpatialIndex, QgsGeometry, QgsDistanceArea, QgsFeature, QgsField, QgsFields
 
 # read graph - as feat
 class segmentor(QObject):
@@ -22,11 +22,11 @@ class segmentor(QObject):
         self.cross_points = []
 
         self.id = -1
-        self.step = 1/self.layer.featureCount()
+        self.step = self.layer.featureCount()
 
         # load graph
         res = map(lambda feat: self.spIndex.insertFeature(feat), self.feat_iter(layer))
-        self.step = 2/len(res)
+        self.step = 40/float(len(res))
 
         # feats need to be created - after iter
         self.unlinks_points = {ml_id: [] for ml_id in self.feats.keys()}
@@ -67,8 +67,6 @@ class segmentor(QObject):
 
     def break_segm(self, feat):
 
-        #self.progress.emit(self.step)
-
         f_geom = feat.geometry()
         inter_lines = filter(lambda line: feat.geometry().distance(self.feats[line].geometry()) <= 0,
                              self.spIndex.intersects(f_geom.boundingBox()))
@@ -86,11 +84,12 @@ class segmentor(QObject):
         return cross_p
 
     def break_feats_iter(self, cross_p_list):
+        self.total_progress = 45
         for idx, cross_p in enumerate(cross_p_list):
-            if self.killed:
+            if self.killed is True:
                 break
-
-            self.progress.emit(self.step)
+            self.total_progress += self.step
+            self.progress.emit(self.total_progress)
 
             for pair in zip(cross_p[:-1], cross_p[1:]):
                 feat = self.feats[idx]
@@ -98,10 +97,13 @@ class segmentor(QObject):
                 yield feat, QgsGeometry.fromPolyline(list(pair)), self.id
 
     def list_iter(self, any_list):
+        self.total_progress = 5
         for item in any_list:
-            if self.killed:
+            if self.killed is True:
                 break
-            self.progress.emit(self.step)
+            self.total_progress += self.step
+            self.progress.emit(self.total_progress)
+
             yield item
 
     def segment(self):
@@ -185,5 +187,6 @@ class segmentor(QObject):
                         self.feats[id] = ml_feat
                         id += 1
                         yield ml_feat
+
     def kill(self):
         self.killed = True

@@ -232,6 +232,7 @@ class NetworkSegmenterTool(QObject):
         self.segmenting.error.disconnect(self.workerError)
         self.segmenting.warning.disconnect(self.giveMessage)
         self.segmenting.segm_progress.disconnect(self.dlg.segmentingProgress.setValue)
+        #self.segmenting.my_segmentor.progress.disconnect(self.segm_progress.emit)
 
         self.thread.deleteLater()
         self.thread.quit()
@@ -298,10 +299,6 @@ class NetworkSegmenterTool(QObject):
             self.my_segmentor = None
             # print ' class initiated'
 
-        def add_step(self,step):
-            self.totalpr += step
-            return self.totalpr
-
         def run(self):
             if has_pydevd and is_debug:
                 pydevd.settrace('localhost', port=53100, stdoutToServer=True, stderrToServer=True, suspend=False)
@@ -317,15 +314,15 @@ class NetworkSegmenterTool(QObject):
                 errors = self.settings['errors']
 
                 # print layer, unlinks, stub_ratio, buffer
-                self.segm_progress.emit(5)
+                self.segm_progress.emit(2)
+
                 self.my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer, errors)
 
-                # if self.my_segmentor.killed is True: return
-
-                # self.my_segmentor.progress.connect(lambda incr=self.add_step(self.my_segmentor.step*80): self.segm_progress.emit(incr))
+                self.my_segmentor.progress.connect(self.segm_progress.emit)
 
                 ret = self.my_segmentor.segment()
-                #self.my_segmentor.progress.disconnect()
+
+                self.my_segmentor.progress.disconnect()
 
                 #print "survived!"
 
