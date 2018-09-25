@@ -50,7 +50,7 @@ class segmentor(QObject):
             self.unlinks_points[lines[0]].append(lines[1])
             self.unlinks_points[lines[1]].append(lines[0])
         else:
-            self.invalid_unlinks.append(unlink_geom)
+            self.invalid_unlinks.append(unlink_geom.asPoint())
         return True
 
     # for every line explode and crossings
@@ -58,10 +58,10 @@ class segmentor(QObject):
         for line in interlines:
             inter = ml_geom.intersection(self.feats[line].geometry())
             if inter.wkbType() == 1:
-                yield  ml_geom.lineLocatePoint(inter), inter.asPoint()
+                yield ml_geom.lineLocatePoint(inter), inter.asPoint()
             elif inter.wkbType() == 4:
                 for i in inter.geometry().asMultiPoint():
-                    yield i.lineLocatePoint(inter), i
+                    yield ml_geom.lineLocatePoint(QgsGeometry.fromPoint(i)), i
         for p in ml_geom.asPolyline():
             yield ml_geom.lineLocatePoint(QgsGeometry.fromPoint(p)), p
 
