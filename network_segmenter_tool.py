@@ -222,10 +222,13 @@ class NetworkSegmenterTool(QObject):
         self.thread.deleteLater()
 
         if ret:
+
             break_lines, break_points = ret
+            print len(break_lines), 'ret'
             segmented = to_layer(break_lines, layer.crs(), layer.dataProvider().encoding(),
                                  layer.dataProvider().geometryType(), output_type, path,
                                  layer_name + '_seg')
+            print 'layer', segmented
             #if segmented:
             QgsMapLayerRegistry.instance().addMapLayer(segmented)
             segmented.updateExtents()
@@ -240,7 +243,6 @@ class NetworkSegmenterTool(QObject):
 
         else:
             # notify the user that sth went wrong
-            self.segmenting.error.emit(e, traceback.format_exc())
             self.giveMessage('Something went wrong! See the message log for more information', QgsMessageBar.CRITICAL)
 
         if is_debug: print 'thread running ', self.thread.isRunning()
@@ -314,10 +316,12 @@ class NetworkSegmenterTool(QObject):
                 self.my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer, errors)
 
                 self.my_segmentor.progress.connect(self.segm_progress.emit)
-                # self.my_segmentor.error.connect(self.error.
+
+                self.my_segmentor.error.connect(self.error.emit)
 
                 ret = self.my_segmentor.segment()
 
+                self.my_segmentor.error.disconnect()
                 self.my_segmentor.progress.disconnect()
 
             except Exception, e:

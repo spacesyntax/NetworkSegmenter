@@ -59,16 +59,15 @@ def getPostgisSchemas(connstring, commit=False):
 # -------------------------- LAYER BUILD
 
 def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
-    # fields
+
     first_feat = features[0]
     fields = first_feat.fields()
-    #layer_fields
     if layer_type == 'memory':
-
-        geom_types = { 0: 'Point', 1: 'Line', 2:'Polygon'}
-        layer = QgsVectorLayer(geom_types[geom_type] + '?crs=' + crs.toWkt(), name, "memory")
+        geom_types = {1: 'Point', 2: 'Linestring', 3:'Polygon'}
+        layer = QgsVectorLayer(geom_types[geom_type] + '?crs=' + crs.authid(), name, "memory")
         pr = layer.dataProvider()
-        pr.addAttributes(fields)
+        pr.addAttributes(fields.toList())
+        layer.updateFields()
         layer.startEditing()
         pr.addFeatures(features)
         layer.commitChanges()
