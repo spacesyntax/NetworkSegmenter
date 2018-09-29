@@ -74,23 +74,20 @@ class break_tools(QObject):
         self.combined = []
         res = map(lambda i: self.con_comp(i), self.nodes_closest_iter())
 
-        # from con_comp -> create new point
-        # replace topology
-        # replace edges
         # merge snapped endpoints
 
-
         # delete duplicates
+
 
         return
 
     def nodes_closest_iter(self):
-        for nd_id, nd_feat in self.nodes.items():
-            nd_geom = nd_feat.geometry()
-            nd_buffer = nd_geom.buffer(self.snap_threshold, 29)
-            closest_nodes = self.ndSpIndex.intersects(nd_buffer.boundingBox())
-            closest_nodes = set(filter(lambda id: nd_geom.distance(self.nodes[id].geometry()) <= self.snap_threshold , closest_nodes))
-            yield closest_nodes
+            for nd_id, nd_feat in self.nodes.items():
+                nd_geom = nd_feat.geometry()
+                nd_buffer = nd_geom.buffer(self.snap_threshold, 29)
+                closest_nodes = self.ndSpIndex.intersects(nd_buffer.boundingBox())
+                closest_nodes = set(filter(lambda id: nd_geom.distance(self.nodes[id].geometry()) <= self.snap_threshold , closest_nodes))
+                yield closest_nodes
 
     def con_comp(self, subset):
         for candidate in self.combined:
@@ -119,56 +116,53 @@ class break_tools(QObject):
             f_geom = f.geometry()
             # NULL, points, invalids, mlparts
 
-            # TODO: add dropZValue()
-
-            f_geom_length = f_geom.length()
-
             if f_geom is NULL:
                 self.empty_geometries.append(f.id())
             elif not f_geom.isGeosValid():
                 self.invalids.append(f.id())
-            elif f_geom_length == 0:
-                self.points.append(f.id())
-            elif 0 < f_geom_length < self.snap_threshold:
-                pass # do not add to the graph - as it will be removed later
-            elif f_geom.wkbType() == 2:
-                f.setFeatureId(id)
-                self.feats[id] = f
-                pl = f_geom.asPolyline()
-                for i in (0, -1):
-                    try:
-                        nd_id = self.nodes_visited[(pl[i].x(), pl[i].y())]
-                        self.topology[nd_id].append(id)
-                    except KeyError:
-                        # TODO: find if within distance x from point
-                        self.nodes_visited[(pl[i].x(), pl[i].y())] = self.node_id
-                        node_feat = self.copy_feat(self.node_prototype, QgsGeometry.fromPoint(pl[i]), self.node_id)
-                        self.nodes[self.node_id] = node_feat
-                        self.ndSpIndex.insertFeature(node_feat)
-                        self.topology[self.node_id] = [id]
-                        self.node_id += 1
-                id += 1
-                yield f
-            elif f_geom.wkbType() == 5:
-                ml_segms = f_geom.asMultiPolyline()
-                for ml in ml_segms:
-                    ml_geom = QgsGeometry(ml)
-                    ml_feat = self.copy_feat(f, ml_geom, id)
-                    self.feats[id] = ml_feat
-                    pl = ml_geom.asPolyline()
-                    for i in (0, -1):
-                        try:
-                            nd_id = self.nodes_visited[(pl[i].x(), pl[i].y())]
-                            self.topology[nd_id].append(id)
-                        except KeyError:
-                            self.nodes_visited[(pl[i].x(), pl[i].y())] = self.node_id
-                            node_feat = self.copy_feat(self.node_prototype, QgsGeometry.fromPoint(pl[i]), self.node_id)
-                            self.nodes[self.node_id] = node_feat
-                            self.ndSpIndex.insertFeature(node_feat)
-                            self.topology[self.node_id] = [id]
-                            self.node_id += 1
-                    id += 1
-                    yield ml_feat
+            else:
+                f_geom_length = f_geom.length()
+                if f_geom_length == 0:
+                    self.points.append(f.id())
+                elif 0 < f_geom_length < self.snap_threshold:
+                    pass # do not add to the graph - as it will be removed later
+                else:
+                    if f_geom.wkbType() == 2:
+                        f.setFeatureId(id)
+                        self.feats[id] = f
+                        pl = f_geom.asPolyline()
+                        for i in (0, -1):
+                            try:
+                                nd_id = self.nodes_visited[(pl[i].x(), pl[i].y())]
+                                self.topology[nd_id].append(id)
+                            except KeyError:
+                                # TODO: find if within distance x from point
+                                self.nodes_visited[(pl[i].x(), pl[i].y())] = self.node_id
+                                node_feat = self.copy_feat(self.node_prototype, QgsGeometry.fromPoint(pl[i]), self.node_id)
+                                self.nodes[self.node_id] = node_feat
+                                self.ndSpIndex.insertFeature(node_feat)
+                                self.topology[self.node_id] = [id]
+                                self.node_id += 1
+                        id += 1
+                        yield f
+                    elif f_geom.wkbType() == 5:
+                        ml_segms = f_geom.asMultiPolyline()
+                        for ml in ml_segms:
+                            ml_geom = QgsGeometry(ml)
+                            ml_feat = self.copy_feat(f, ml_geom, id)
+                            self.feats[id] = ml_feat
+                            pl = ml_geom.asPolyline()
+                            for i in (0, -1):
+                                try:
+                                    nd_id = self.nodes_visited[(pl[i].x(), pl[i].y())]
+                                except KeyError:
+                                    self.nodes_visited[(pl[i].x(), pl[i].y())] = self.node_id
+                                    node_feat = self.copy_feat(self.node_prototype, QgsGeometry.fromPoint(pl[i]), self.node_id)
+                                    self.nodes[self.node_id] = node_feat
+                                    self.ndSpIndex.insertFeature(node_feat)
+                                    self.node_id += 1
+                            id += 1
+                            yield ml_feat
 
     def kill(self):
         self.killed = True
