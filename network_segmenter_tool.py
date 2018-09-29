@@ -29,6 +29,7 @@ from qgis.core import *
 from qgis.gui import *
 from qgis.utils import *
 import time
+import os
 
 from network_segmenter_dialog import NetworkSegmenterDialog
 from segment_tools import *  # better give these a name to make it explicit to which module the methods belong
@@ -235,9 +236,11 @@ class NetworkSegmenterTool(QObject):
             if self.settings['errors']:
                 errors = to_layer(break_points, layer.crs(), layer.dataProvider().encoding(), 1, output_type,
                               path[:-4] + '_break_points.shp', 'break points')
-                errors.loadNamedStyle('errors_style.qml')
+                errors.loadNamedStyle(os.path.dirname(__file__) + '/errors_style.qml')
+                print 'os path', os.path.dirname(__file__)
                 QgsMapLayerRegistry.instance().addMapLayer(errors)
                 # TODO: add symbology
+                self.iface.legendInterface().refreshLayerSymbology(errors)
 
             self.giveMessage('Process ended successfully!', QgsMessageBar.INFO)
 
