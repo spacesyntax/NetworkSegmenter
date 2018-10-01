@@ -237,7 +237,6 @@ class NetworkSegmenterTool(QObject):
                 errors = to_layer(break_points, layer.crs(), layer.dataProvider().encoding(), 1, output_type,
                               path[:-4] + '_break_points.shp', 'break points')
                 errors.loadNamedStyle(os.path.dirname(__file__) + '/errors_style.qml')
-                print 'os path', os.path.dirname(__file__)
                 QgsMapLayerRegistry.instance().addMapLayer(errors)
                 # TODO: add symbology
                 self.iface.legendInterface().refreshLayerSymbology(errors)

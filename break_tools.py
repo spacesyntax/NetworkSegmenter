@@ -11,16 +11,18 @@ class break_tools(QObject):
     warning = pyqtSignal(str)
     killed = pyqtSignal(bool)
 
-    def __init__(self, layer, snap_threshold, _break,  _merge, angle_threshold, _orphans, unlinks, errors):
+    def __init__(self, layer, snap_threshold, angle_threshold, break_com_vertices, merge_method, collinear_threshold, remove_orphans, remove_islands, create_unlinks, create_errors):
         QObject.__init__(self)
         self.layer = layer
         self.snap_threshold = snap_threshold
         self.angle_threshold = angle_threshold
-        self._break = _break
-        self._merge = _merge
-        self._orphans = _orphans
-        self.errors = errors
-        self.unlinks = unlinks
+        self.break_com_vertices = break_com_vertices
+        self.merge_method = merge_method
+        self.collinear_threshold = collinear_threshold
+        self.remove_orphans = remove_orphans
+        self.remove_islands = remove_islands
+        self.create_errors = create_errors
+        self.create_unlinks = create_unlinks
 
         # internal
         self.edgSpIndex = QgsSpatialIndex()
@@ -40,8 +42,9 @@ class break_tools(QObject):
         self.invalids = []
         self.mlparts = []
         self.orphans = []
+        self.islands = []
         self.duplicates = []
-        self.overlaps = []
+        self.overlaps = [] # TODO if overlap not matching vertices of polyline
         self.snaps = [] #
         self.self_intersections = [] #
         self.closed_polylines = []
@@ -61,32 +64,10 @@ class break_tools(QObject):
 
         self.step = 20 / float(len(self.layer.featureCount()))
 
-    def load_graph(self):
-
-        # load graph
-        res = map(lambda feat: self.edgSpIndex.insertFeature(feat), self.feat_iter(self.layer))
-        self.step = 35 / float(len(res))
-
-        return
-
-    def snap_endpoints(self):
-        # group points by distance
-        self.combined = []
-        res = map(lambda i: self.con_comp(i), self.nodes_closest_iter())
-
-        # from con_comp -> create new point
-        # replace topology
-        # replace edges
-        # merge snapped endpoints
-
-
-        # delete duplicates
-
-        return
 
     def nodes_closest_iter(self):
-        for nd_id, nd_feat in self.nodes.items():
-            nd_geom = nd_feat.geometry()
+        for k, v in self.nodes_coords.items():
+            nd_geom = QgsGeometry.fromPoint(k)
             nd_buffer = nd_geom.buffer(self.snap_threshold, 29)
             closest_nodes = self.ndSpIndex.intersects(nd_buffer.boundingBox())
             closest_nodes = set(filter(lambda id: nd_geom.distance(self.nodes[id].geometry()) <= self.snap_threshold , closest_nodes))
@@ -107,10 +88,57 @@ class break_tools(QObject):
         copy_feat.setFeatureId(id)
         return copy_feat
 
+    def clean(self):
+        self.load_features()
+        if self.snap_threshold:
+            # use feat iter to create self.feats and coords
+            # create nodes with spIndex
+            indexed_nodes = {}
+            self.nodes_id = 0
+            self.nodes_coords = dict(map(lambda f:self.load_node_coord(f), self.load_features_iter()))
+
+            # group based on distance
+            self.combined = []
+            res = map(lambda i: self.con_comp(i), self.nodes_closest_iter())
+            self.combined = dict(zip(range(self.nodes_id, len(self.combined) + self.nodes_id), self.combined))
+            # merge
+            res =
+            # update self.nodes_coords
+            # update feats 
+            # feats to edges
+        else:
+            # use feat iter to create self.edges (from f , node otf)
+            # feats to edges, nodes
+
+        if self.remove_orphans:
+            # remove where both endpoints connectivity = 1
+        if self.remove_islands:
+
+        if self.break_com_vertices:
+
+        if self.merge_btw_intersections:
+
+        elif self.merge_collinear:
+
+    def load_node_coord(self, f):
+        self.feats[f.id()] = f
+        f_pl = f.geometry().asPolyline()
+        for endp in (0,-1):
+            try:
+                visited_id = self.nodes_coords[f_pl[endp]]
+            except KeyError:
+                nd_feat = QgsFeature()
+                nd_feat.setGeometry(QgsGeometry.fromPoint(f_pl[endp]))
+                nd_feat.setFeatureId(self.node_id)
+                nd_feat.setAttributes([self.node_id])
+                self.ndSpIndex.insertFeature(nd_feat)
+                self.node_id += 1
+                yield self.nodes_id -1, f_pl[endp]
+
     # only 1 time execution permitted
-    def feat_iter(self, layer):
+    def load_features_iter(self):
         id = 0
-        for f in layer.getFeatures():
+        for f in self.layer.getFeatures():
 
             #self.progress.emit(self.step)
             if self.killed is True:
@@ -133,20 +161,6 @@ class break_tools(QObject):
                 pass # do not add to the graph - as it will be removed later
             elif f_geom.wkbType() == 2:
                 f.setFeatureId(id)
-                self.feats[id] = f
-                pl = f_geom.asPolyline()
-                for i in (0, -1):
-                    try:
-                        nd_id = self.nodes_visited[(pl[i].x(), pl[i].y())]
-                        self.topology[nd_id].append(id)
-                    except KeyError:
-                        # TODO: find if within distance x from point
-                        self.nodes_visited[(pl[i].x(), pl[i].y())] = self.node_id
-                        node_feat = self.copy_feat(self.node_prototype, QgsGeometry.fromPoint(pl[i]), self.node_id)
-                        self.nodes[self.node_id] = node_feat
-                        self.ndSpIndex.insertFeature(node_feat)
-                        self.topology[self.node_id] = [id]
-                        self.node_id += 1
                 id += 1
                 yield f
             elif f_geom.wkbType() == 5:
@@ -154,19 +168,6 @@ class break_tools(QObject):
                 for ml in ml_segms:
                     ml_geom = QgsGeometry(ml)
                     ml_feat = self.copy_feat(f, ml_geom, id)
-                    self.feats[id] = ml_feat
-                    pl = ml_geom.asPolyline()
-                    for i in (0, -1):
-                        try:
-                            nd_id = self.nodes_visited[(pl[i].x(), pl[i].y())]
-                            self.topology[nd_id].append(id)
-                        except KeyError:
-                            self.nodes_visited[(pl[i].x(), pl[i].y())] = self.node_id
-                            node_feat = self.copy_feat(self.node_prototype, QgsGeometry.fromPoint(pl[i]), self.node_id)
-                            self.nodes[self.node_id] = node_feat
-                            self.ndSpIndex.insertFeature(node_feat)
-                            self.topology[self.node_id] = [id]
-                            self.node_id += 1
                     id += 1
                     yield ml_feat
 

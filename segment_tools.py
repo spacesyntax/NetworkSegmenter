@@ -19,7 +19,6 @@ class segmentor(QObject):
         # internal
         self.spIndex = QgsSpatialIndex()
         self.feats = {}
-        self.stubs = []
         self.cross_points = []
         self.connectivity = {}
         self.invalid_unlinks = []
@@ -49,13 +48,23 @@ class segmentor(QObject):
             unlink_geom = unlink_geom.buffer(self.buffer, 36)
         lines = filter(lambda i: unlink_geom.intersects(self.feats[i].geometry()),
                        self.spIndex.intersects(unlink_geom.boundingBox()))
-        if unlink_geom.wkbType() == 3:
-            unlink_geom = self.feats[lines[0]].geometry().intersection(self.feats[lines[1]].geometry())
-        if len(lines) == 2:
-            self.unlinks_points[lines[0]].append(lines[1]) #TODO: what if line unlinked by one line in two points?
-            self.unlinks_points[lines[1]].append(lines[0])
-        else:
+        #if unlink_geom.wkbType() == 3:
+        if len(lines) != 2:
             self.invalid_unlinks.append(unlink_geom.asPoint())
+        else:
+
+            line1_geom = self.feats[lines[0]].geometry()
+            line2_geom = self.feats[lines[1]].geometry()
+            unlink_geom = line1_geom.intersection(line2_geom)
+            unlink_geom_p = unlink_geom.asPoint()
+            if unlink_geom_p in line1_geom.asPolyline():
+                # what if unlink on polyline vertices # TODO test
+                self.invalid_unlinks.append(unlink_geom_p)
+            elif unlink_geom_p in line2_geom.asPolyline():
+                self.invalid_unlinks.append(unlink_geom_p)
+            else:
+                self.unlinks_points[lines[0]].append(unlink_geom.asPoint())
+                self.unlinks_points[lines[1]].append(unlink_geom.asPoint())
         return True
 
     # for every line explode and crossings
@@ -64,10 +73,11 @@ class segmentor(QObject):
             inter = ml_geom.intersection(self.feats[line].geometry())
             if inter.wkbType() == 1:
                 yield ml_geom.lineLocatePoint(inter), inter.asPoint()
-            elif inter.wkbType() == 4:
+            elif inter.wkbType() == 4: # TODO: what if line unlinked by one line in two points?
                 for i in inter.geometry().asMultiPoint():
                     yield ml_geom.lineLocatePoint(QgsGeometry.fromPoint(i)), i
         for p in ml_geom.asPolyline():
+            # unlinks in vertices not allowed
             yield ml_geom.lineLocatePoint(QgsGeometry.fromPoint(p)), p
 
     def break_segm(self, feat):
@@ -75,8 +85,7 @@ class segmentor(QObject):
         f_geom = feat.geometry()
         inter_lines = filter(lambda line: feat.geometry().distance(self.feats[line].geometry()) <= 0,
                              self.spIndex.intersects(f_geom.boundingBox()))
-        inter_lines = (set(inter_lines) - set(self.unlinks_points[feat.id()]))
-        cross_p = [p for (factor, p) in sorted(set(self.point_iter(inter_lines, f_geom)))]
+        cross_p = [p for (factor, p) in sorted(set(self.point_iter(inter_lines, f_geom))) if p not in self.unlinks_points[feat.id()]]
 
         if self.stub_ratio:
             cross_p = map(lambda p: p, self.stubs_clean_iter(cross_p, f_geom.asPolyline()))
@@ -146,8 +155,8 @@ class segmentor(QObject):
                 break_point_feats = map(lambda (p, fid) : self.copy_feat(break_f, QgsGeometry.fromPoint(p), fid), (zip(cross_p_list, ids1)))
                 ids2 = [i for i in range(max(ids1) + 1, max(ids1) + 1 + len(self.invalid_unlinks))]
                 invalid_unlink_point_feats = map(lambda (p, fid) : self.copy_feat(invalid_unlink_f, QgsGeometry.fromPoint(p), fid), (zip(self.invalid_unlinks, ids2)))
-                ids = [i for i in range(max(ids1 + ids2) + 1, max(ids1 + ids2) + 1 + len(self.stubs))]
-                stubs_point_feats = map(lambda (p, fid): self.copy_feat(stub_f, QgsGeometry.fromPoint(p), fid), (zip(self.stubs, ids)))
+                ids = [i for i in range(max(ids1 + ids2) + 1, max(ids1 + ids2) + 1 + len(self.stubs_points))]
+                stubs_point_feats = map(lambda (p, fid): self.copy_feat(stub_f, QgsGeometry.fromPoint(p), fid), (zip(self.stubs_points, ids)))
 
         except Exception, exc:
             print exc, traceback.format_exc()
@@ -159,6 +168,7 @@ class segmentor(QObject):
             if QgsDistanceArea().measureLine(pnt, cross_p[1])/ QgsDistanceArea().measureLine(pnt, f_pl[1]) > 0.4:
                 yield pnt
             elif self.connectivity[(pnt.x(), pnt.y())] == 1:
+                self.stubs_points.append(pnt)
                 pass
             else:
                 yield pnt
@@ -168,6 +178,7 @@ class segmentor(QObject):
             if QgsDistanceArea().measureLine(pnt, cross_p[-2])/ QgsDistanceArea().measureLine(pnt, f_pl[-2]) > 0.4:
                 yield pnt
             elif self.connectivity[(pnt.x(), pnt.y())] == 1:
+                self.stubs_points.append(pnt)
                 pass
             else:
                 yield pnt
