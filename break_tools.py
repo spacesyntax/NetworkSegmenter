@@ -25,14 +25,13 @@ class break_tools(QObject):
         self.create_unlinks = create_unlinks
 
         # internal
-        self.edgSpIndex = QgsSpatialIndex()
+        self.spIndex = QgsSpatialIndex()
         self.ndSpIndex = QgsSpatialIndex()
-        self.edges = {}
-        self.nodes = {}
-        self.nodes_visited = {}
+        self.feats = {}
         self.topology = {}
+        self.nodes_coords = {}
 
-        self.id = -1
+        self.id = 0
         self.node_id = 0
         self.step = self.layer.featureCount()
 
@@ -104,7 +103,7 @@ class break_tools(QObject):
             # merge
             res =
             # update self.nodes_coords
-            # update feats 
+            # update feats
             # feats to edges
         else:
             # use feat iter to create self.edges (from f , node otf)
@@ -135,6 +134,8 @@ class break_tools(QObject):
                 self.node_id += 1
                 yield self.nodes_id -1, f_pl[endp]
 
+    def create_topology(self):
+
     # only 1 time execution permitted
     def load_features_iter(self):
         id = 0
@@ -162,7 +163,15 @@ class break_tools(QObject):
             elif f_geom.wkbType() == 2:
                 f.setFeatureId(id)
                 id += 1
-                yield f
+                f_pl = f_geom.asPolyline()
+                for pnt in f_pl[0, -1]:
+                    try:
+                        ex_id = self.nodes_coords[pnt]
+
+                    except KeyError:
+
+
+
             elif f_geom.wkbType() == 5:
                 ml_segms = f_geom.asMultiPolyline()
                 for ml in ml_segms:
@@ -170,6 +179,7 @@ class break_tools(QObject):
                     ml_feat = self.copy_feat(f, ml_geom, id)
                     id += 1
                     yield ml_feat
+        self.id = id
 
     def kill(self):
         self.killed = True
