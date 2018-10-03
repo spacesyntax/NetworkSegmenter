@@ -238,7 +238,6 @@ class NetworkSegmenterTool(QObject):
                               path[:-4] + '_break_points.shp', 'break points')
                 errors.loadNamedStyle(os.path.dirname(__file__) + '/errors_style.qml')
                 QgsMapLayerRegistry.instance().addMapLayer(errors)
-                # TODO: add symbology
                 self.iface.legendInterface().refreshLayerSymbology(errors)
 
             self.giveMessage('Process ended successfully!', QgsMessageBar.INFO)
@@ -313,7 +312,6 @@ class NetworkSegmenterTool(QObject):
                 errors = self.settings['errors']
 
                 # print layer, unlinks, stub_ratio, buffer
-                self.segm_progress.emit(2)
 
                 self.my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer, errors)
 

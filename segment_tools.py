@@ -24,13 +24,21 @@ class segmentor(QObject):
         self.invalid_unlinks = []
         self.stubs_points = []
 
+        self.cross_p_list = []
+
         self.id = -1
+
+        fields = QgsFields()
+        fields.append(QgsField('type', QVariant.String))
+        self.break_f = prototype_feature(['break point'], fields)
+        self.invalid_unlink_f = prototype_feature(['invalid unlink'], fields)
+        self.stub_f = prototype_feature(['stub'], fields)
 
     def load_graph(self):
 
         # load graph
         res = map(lambda feat: self.spIndex.insertFeature(feat), self.feat_iter(self.layer))
-        self.step = 70/float(len(res))
+        self.step = 90/float(len(res))
 
         # feats need to be created - after iter
         self.unlinks_points = {ml_id: [] for ml_id in self.feats.keys()}
@@ -58,11 +66,12 @@ class segmentor(QObject):
             unlink_geom = line1_geom.intersection(line2_geom)
             unlink_geom_p = unlink_geom.asPoint()
             if unlink_geom_p in line1_geom.asPolyline():
-                # what if unlink on polyline vertices # TODO test
+                # what if unlink on polyline vertices
                 self.invalid_unlinks.append(unlink_geom_p)
             elif unlink_geom_p in line2_geom.asPolyline():
                 self.invalid_unlinks.append(unlink_geom_p)
             else:
+                # save point and not line - if line unlinked by one line in two points
                 self.unlinks_points[lines[0]].append(unlink_geom.asPoint())
                 self.unlinks_points[lines[1]].append(unlink_geom.asPoint())
         return True
@@ -73,12 +82,19 @@ class segmentor(QObject):
             inter = ml_geom.intersection(self.feats[line].geometry())
             if inter.wkbType() == 1:
                 yield ml_geom.lineLocatePoint(inter), inter.asPoint()
-            elif inter.wkbType() == 4: # TODO: what if line unlinked by one line in two points?
-                for i in inter.geometry().asMultiPoint():
+            elif inter.wkbType() == 4:
+                for i in inter.asMultiPoint():
                     yield ml_geom.lineLocatePoint(QgsGeometry.fromPoint(i)), i
-        for p in ml_geom.asPolyline():
+        ml_pl = ml_geom.asPolyline()
+        pl_len = 0  # executed first time
+        yield pl_len, ml_pl[0]
+        for p1, p2 in zip(ml_pl[: -1], ml_pl[1:]):
             # unlinks in vertices not allowed
-            yield ml_geom.lineLocatePoint(QgsGeometry.fromPoint(p)), p
+            # if closed polyline return last point/ if self intersection
+            segm_len = QgsDistanceArea().measureLine(p1, p2)
+            if segm_len != 0:
+                pl_len += segm_len
+                yield pl_len, p2
 
     def break_segm(self, feat):
 
@@ -123,43 +139,26 @@ class segmentor(QObject):
             # TODO: if postgis - run function
             self.step = 10 / float(self.layer.featureCount())
             self.load_graph()
+            # self.step specified in load_graph
             # progress emitted by break_segm & break_feats_iter
             cross_p_list = map(lambda feat: self.break_segm(feat), self.list_iter(self.feats.values()))
             self.step = 20/float(len(cross_p_list))
             segmented_feats = map(lambda (feat, geom, fid): self.copy_feat(feat, geom, fid), self.break_feats_iter(cross_p_list))
 
             if self.errors:
-                break_f = QgsFeature()
-                fields = QgsFields()
-                fields.append(QgsField('type', QVariant.String))
-                break_f.initAttributes(1)
-                break_f.setFields(fields)
-                break_f.setAttributes(['break point'])
-                break_f.setGeometry(QgsGeometry())
-
-                invalid_unlink_f = QgsFeature()
-                invalid_unlink_f.initAttributes(1)
-                invalid_unlink_f.setFields(fields)
-                invalid_unlink_f.setAttributes(['invalid unlink'])
-                invalid_unlink_f.setGeometry(QgsGeometry())
-
-                stub_f = QgsFeature()
-                stub_f.initAttributes(1)
-                stub_f.setFields(fields)
-                stub_f.setAttributes(['stub'])
-                stub_f.setGeometry(QgsGeometry())
 
                 cross_p_list = set(list(itertools.chain.from_iterable(cross_p_list)))
 
                 ids1 = [i for i in range(0, len(cross_p_list))]
-                break_point_feats = map(lambda (p, fid) : self.copy_feat(break_f, QgsGeometry.fromPoint(p), fid), (zip(cross_p_list, ids1)))
+                break_point_feats = map(lambda (p, fid) : self.copy_feat(self.break_f, QgsGeometry.fromPoint(p), fid), (zip(cross_p_list, ids1)))
                 ids2 = [i for i in range(max(ids1) + 1, max(ids1) + 1 + len(self.invalid_unlinks))]
-                invalid_unlink_point_feats = map(lambda (p, fid) : self.copy_feat(invalid_unlink_f, QgsGeometry.fromPoint(p), fid), (zip(self.invalid_unlinks, ids2)))
+                invalid_unlink_point_feats = map(lambda (p, fid) : self.copy_feat(self.invalid_unlink_f, QgsGeometry.fromPoint(p), fid), (zip(self.invalid_unlinks, ids2)))
                 ids = [i for i in range(max(ids1 + ids2) + 1, max(ids1 + ids2) + 1 + len(self.stubs_points))]
-                stubs_point_feats = map(lambda (p, fid): self.copy_feat(stub_f, QgsGeometry.fromPoint(p), fid), (zip(self.stubs_points, ids)))
+                stubs_point_feats = map(lambda (p, fid): self.copy_feat(self.stub_f, QgsGeometry.fromPoint(p), fid), (zip(self.stubs_points, ids)))
 
         except Exception, exc:
             print exc, traceback.format_exc()
+            # TODO: self.error.emit(exc, traceback.format_exc())
 
         return segmented_feats, break_point_feats + invalid_unlink_point_feats + stubs_point_feats
 
@@ -209,14 +208,16 @@ class segmentor(QObject):
                 self.feats[id] = f
                 id += 1
                 f_pl = f_geom.asPolyline()
+                start_p = (f_pl[0].x(), f_pl[0].y())
+                end_p = (f_pl[-1].x(), f_pl[-1].y())
                 try:
-                    self.connectivity[(f_pl[0].x(), f_pl[0].y())] += 1
+                    self.connectivity[start_p] += 1
                 except KeyError:
-                    self.connectivity[(f_pl[0].x(), f_pl[0].y())] = 1
+                    self.connectivity[start_p] = 1
                 try:
-                    self.connectivity[(f_pl[-1].x(), f_pl[-1].y())] += 1
+                    self.connectivity[end_p] += 1
                 except KeyError:
-                    self.connectivity[(f_pl[-1].x(), f_pl[-1].y())] = 1
+                    self.connectivity[end_p] = 1
                 yield f
             elif f_geom.wkbType() == 5:
                 ml_segms = f_geom.asMultiPolyline()
@@ -226,14 +227,16 @@ class segmentor(QObject):
                     self.feats[id] = ml_feat
                     id += 1
                     f_pl = ml_feat.asPolyline()
+                    start_p = (f_pl[0].x(), f_pl[0].y())
+                    end_p = (f_pl[-1].x(), f_pl[-1].y())
                     try:
-                        self.connectivity[(f_pl[0].x(), f_pl[0].y())] += 1
+                        self.connectivity[start_p] += 1
                     except KeyError:
-                        self.connectivity[(f_pl[0].x(), f_pl[0].y())] = 1
+                        self.connectivity[start_p] = 1
                     try:
-                        self.connectivity[(f_pl[-1].x(), f_pl[-1].y())] += 1
+                        self.connectivity[end_p] += 1
                     except KeyError:
-                        self.connectivity[(f_pl[-1].x(), f_pl[-1].y())] = 1
+                        self.connectivity[end_p] = 1
                     yield ml_feat
 
     def kill(self):

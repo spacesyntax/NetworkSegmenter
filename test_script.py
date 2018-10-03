@@ -8,14 +8,20 @@ execfile(u'/Users/joe/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
 start_time = time.time()
 layer = getLayerByName('axial_map_m25')
 unlinks = getLayerByName('axial_map_m25_u')
-stub_ratio = 0.4
+#layer = getLayerByName('merged_mixed_model1')
+#unlinks = None
+stub_ratio = None
 buffer = 0
 errors = True
 # my_segmentor = segmentor(layer, None, stub_ratio, None)
 my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer, errors)
 
+my_segmentor.step = 10 / float(my_segmentor.layer.featureCount())
+my_segmentor.load_graph()
+
 break_lines, break_points = my_segmentor.segment()
 print 'process time', time.time() - start_time
+print 'finished'
 
 segmented = to_layer(break_lines, layer.crs(), layer.dataProvider().encoding(), layer.dataProvider().geometryType(), "shapefile", '/Users/joe/segmented.shp', 'segmented')
 QgsMapLayerRegistry.instance().addMapLayer(segmented)

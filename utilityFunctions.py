@@ -17,6 +17,17 @@ def getLayerByName(name):
 
 # -------------------------- GEOMETRY HANDLING
 
+
+# -------------------------- FEATURE HANDLING
+
+def prototype_feature(attrs, fields):
+    feat = QgsFeature()
+    feat.initAttributes(1)
+    feat.setFields(fields)
+    feat.setAttributes(attrs)
+    feat.setGeometry(QgsGeometry())
+    return feat
+
 # -------------------------- POSTGIS INFO RETRIEVAL
 
 
