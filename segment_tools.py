@@ -92,9 +92,8 @@ class segmentor(QObject):
             # unlinks in vertices not allowed
             # if closed polyline return last point/ if self intersection
             segm_len = QgsDistanceArea().measureLine(p1, p2)
-            if segm_len != 0:
-                pl_len += segm_len
-                yield pl_len, p2
+            pl_len += segm_len
+            yield pl_len, p2
 
     def break_segm(self, feat):
 
