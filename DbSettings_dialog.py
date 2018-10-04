@@ -58,7 +58,6 @@ class DbSettingsDialog(QtGui.QDialog, FORM_CLASS):
         self.schemaCombo.currentIndexChanged.connect(self.setDbOutput)
         self.nameLineEdit.textChanged.connect(self.setDbOutput)
 
-
         self.popDbs()
         if self.dbCombo.currentText() in self.available_dbs.keys():
             self.popSchemas()

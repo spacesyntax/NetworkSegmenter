@@ -315,6 +315,7 @@ class NetworkSegmenterTool(QObject):
 
                 self.my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer, errors)
 
+                print 'created segmentor object'
                 self.my_segmentor.progress.connect(self.segm_progress.emit)
 
                 self.my_segmentor.error.connect(self.error.emit)
@@ -325,6 +326,7 @@ class NetworkSegmenterTool(QObject):
                 self.my_segmentor.progress.disconnect()
 
             except Exception, e:
+                print (e, traceback.format_exc())
                 self.error.emit(e, traceback.format_exc())
 
             #print "survived!"

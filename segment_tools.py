@@ -2,6 +2,7 @@ import itertools
 from PyQt4.QtCore import QObject, pyqtSignal, QVariant
 from qgis.core import QgsSpatialIndex, QgsGeometry, QgsDistanceArea, QgsFeature, QgsField, QgsFields
 import traceback
+from utilityFunctions import prototype_feature
 
 # read graph - as feat
 class segmentor(QObject):
