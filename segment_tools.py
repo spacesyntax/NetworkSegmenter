@@ -2,6 +2,7 @@ import itertools
 from PyQt4.QtCore import QObject, pyqtSignal, QVariant
 from qgis.core import QgsSpatialIndex, QgsGeometry, QgsDistanceArea, QgsFeature, QgsField, QgsFields
 import traceback
+from utilityFunctions import prototype_feature
 
 # read graph - as feat
 class segmentor(QObject):
@@ -38,7 +39,7 @@ class segmentor(QObject):
 
         # load graph
         res = map(lambda feat: self.spIndex.insertFeature(feat), self.feat_iter(self.layer))
-        self.step = 90/float(len(res))
+        self.step = 80/float(len(res))
 
         # feats need to be created - after iter
         self.unlinks_points = {ml_id: [] for ml_id in self.feats.keys()}

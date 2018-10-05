@@ -317,11 +317,36 @@ class NetworkSegmenterTool(QObject):
 
                 self.my_segmentor.progress.connect(self.segm_progress.emit)
 
-                self.my_segmentor.error.connect(self.error.emit)
+                break_point_feats, invalid_unlink_point_feats, stubs_point_feats, segmented_feats = [], [], [], []
 
-                ret = self.my_segmentor.segment()
+                # TODO: if postgis - run function
+                self.my_segmentor.step = 10 / float(self.my_segmentor.layer.featureCount())
+                self.my_segmentor.load_graph()
+                # self.step specified in load_graph
+                # progress emitted by break_segm & break_feats_iter
+                cross_p_list = map(lambda feat: self.my_segmentor.break_segm(feat), self.my_segmentor.list_iter(self.my_segmentor.feats.values()))
+                self.my_segmentor.step = 20 / float(len(cross_p_list))
+                segmented_feats = map(lambda (feat, geom, fid): self.my_segmentor.copy_feat(feat, geom, fid),
+                                      self.my_segmentor.break_feats_iter(cross_p_list))
 
-                self.my_segmentor.error.disconnect()
+                if errors:
+                    cross_p_list = set(list(itertools.chain.from_iterable(cross_p_list)))
+
+                    ids1 = [i for i in range(0, len(cross_p_list))]
+                    break_point_feats = map(
+                        lambda (p, fid): self.my_segmentor.copy_feat(self.my_segmentor.break_f, QgsGeometry.fromPoint(p), fid),
+                        (zip(cross_p_list, ids1)))
+                    ids2 = [i for i in range(max(ids1) + 1, max(ids1) + 1 + len(self.my_segmentor.invalid_unlinks))]
+                    invalid_unlink_point_feats = map(
+                        lambda (p, fid): self.my_segmentor.copy_feat(self.my_segmentor.invalid_unlink_f, QgsGeometry.fromPoint(p), fid),
+                        (zip(self.my_segmentor.invalid_unlinks, ids2)))
+                    ids = [i for i in range(max(ids1 + ids2) + 1, max(ids1 + ids2) + 1 + len(self.my_segmentor.stubs_points))]
+                    stubs_point_feats = map(
+                        lambda (p, fid): self.my_segmentor.copy_feat(self.my_segmentor.stub_f, QgsGeometry.fromPoint(p), fid),
+                        (zip(self.my_segmentor.stubs_points, ids)))
+
+                ret = segmented_feats, break_point_feats + invalid_unlink_point_feats + stubs_point_feats
+
                 self.my_segmentor.progress.disconnect()
 
             except Exception, e:
