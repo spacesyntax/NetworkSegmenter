@@ -1,5 +1,5 @@
 # general imports
-from qgis.core import QgsMapLayerRegistry, QgsVectorFileWriter, QgsVectorLayer, QgsFeature, QgsGeometry,QgsFields, QgsDataSourceURI, QgsField
+from qgis.core import QgsMapLayerRegistry, QgsVectorFileWriter, QgsVectorLayer, QgsFeature, QgsGeometry,QgsFields, QgsDataSourceURI, QgsField, QgsCoordinateReferenceSystem, QgsVectorLayerImport
 import psycopg2
 from psycopg2.extensions import AsIs
 
@@ -73,6 +73,7 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
 
     first_feat = features[0]
     fields = first_feat.fields()
+    layer = None
     if layer_type == 'memory':
         geom_types = {1: 'Point', 2: 'Linestring', 3:'Polygon'}
         layer = QgsVectorLayer(geom_types[geom_type] + '?crs=' + crs.authid(), name, "memory")
@@ -96,25 +97,67 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
         layer.commitChanges()
 
     elif layer_type == 'postgis':
-        crs_id = str(crs.postgisSrid())
-        # TODO: or service
-        connstring = "dbname=%s user=%s host=%s port=%s password=%s" % (dbname, user, host, port, password)
+        crs_id = crs.postgisSrid()
+        geom_types = {1: 'Point', 2: 'Linestring', 3: 'Polygon', 4: 'MultiPoint', 5: 'MultiLineString', 6: 'MultiPolygon'}
+        post_q_flds = {2: 'bigint', 6: 'numeric', 1: 'bool', 'else': 'text'}
         try:
-            uri = "dbname='test' host=localhost port=5432 user='user' password='password' key=gid type=POINT table=\"public\".\"test\" (geom) sql="
-            crs_id = 4326
-            crs = QgsCoordinateReferenceSystem(crs_id, QgsCoordinateReferenceSystem.EpsgCrsId)
-            # layer - QGIS vector layer
-            error = QgsVectorLayerImport.importLayer(layer, uri, "postgres", crs, False, False)
-            if error[0] != 0:
-                iface.messageBar().pushMessage(u'Error', error[1], QgsMessageBar.CRITICAL, 5)
+            # crs = QgsCoordinateReferenceSystem(crs_id, QgsCoordinateReferenceSystem.EpsgCrsId)
+            # mem_layer = to_layer(features, crs, encoding, geom_type, 'memory', path, name)
+            # error = QgsVectorLayerImport.importLayer(mem_layer, path, "postgres", crs, False, False)
+            # if error[0] != 0: print u'Error', error[1]
 
+            (connstring, schema_name, table_name) = path
+
+            uri = connstring + """ type=""" + geom_types[geom_type] + """ table=\"""" + schema_name + """\".\"""" + table_name + """\" (geom) """
+            print uri , 'POSTGIS'
+
+            con = psycopg2.connect(connstring)
+            cur = con.cursor()
+
+            postgis_flds_q = """"""
+            for f in fields:
+                f_name = '\"' + f.name() + '\"'
+                try:
+                    f_type = post_q_flds[f.type()]
+                except KeyError:
+                    f_type = post_q_flds['else']
+                postgis_flds_q += cur.mogrify("""%s %s,""", (AsIs(f_name), AsIs(f_type)))
+
+            query = cur.mogrify(
+                """DROP TABLE IF EXISTS %s.%s; CREATE TABLE %s.%s(%s geom geometry(%s, %s))""", (
+                AsIs(schema_name), AsIs(table_name), AsIs(schema_name), AsIs(table_name), AsIs(postgis_flds_q), geom_types[geom_type],  AsIs(crs_id)))
+            cur.execute(query)
+            con.commit()
+
+            data = map(lambda f: (clean_nulls(f.attributes()), f.geometry().exportToWkt()), features)
+            args_str = ','.join(
+                map(lambda (attrs, wkt): rmv_parenthesis(cur.mogrify("%s,ST_GeomFromText(%s,%s))", (tuple(attrs), wkt, AsIs(crs_id)))), tuple(data)))
+
+            ins_str = cur.mogrify("""INSERT INTO %s.%s VALUES """, (AsIs(schema_name), AsIs(table_name)))
+            cur.execute(ins_str + args_str)
+            con.commit()
+            con.close()
+
+            layer = QgsVectorLayer(uri, name, 'postgres')
         except psycopg2.DatabaseError, e:
-            return e
-
+            print e
     else:
         print "file type not supported"
     return layer
 
+
+def clean_nulls(attrs):
+    cleaned_attrs = []
+    for attr in attrs:
+        if attr:
+            cleaned_attrs.append(attr)
+        else:
+            cleaned_attrs.append(None)
+    return cleaned_attrs
+
+def rmv_parenthesis(my_string):
+    idx = my_string.find(',ST_GeomFromText') - 1
+    return  my_string[:idx] + my_string[(idx+1):]
 
 
 

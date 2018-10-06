@@ -49,6 +49,7 @@ class DbSettingsDialog(QtGui.QDialog, FORM_CLASS):
         self.setupUi(self)
 
         self.available_dbs = available_dbs
+        self.connstring = None
 
         self.okButton.clicked.connect(self.close)
         self.dbCombo.currentIndexChanged.connect(self.popSchemas)
@@ -82,27 +83,27 @@ class DbSettingsDialog(QtGui.QDialog, FORM_CLASS):
         schemas = []
         selected_db = self.getSelectedDb()
         if len(self.getSelectedDb()) > 1:
-            try:
-                db_info = self.available_dbs[selected_db]
-                print 'tries', db_info, selected_db
-                connstring = ''
-                try:
-                    db_info['user'] = db_info['username']
-                    del db_info['username']
-                except KeyError:
-                    pass
-                for k, v in db_info.items():
-                    connstring += str(k) + '=' + str(v) + ' '
-                if 'service' in db_info.keys():
-                    pass
-                else:
-                    connstring += 'dbname=' + str(selected_db)
-                schemas = getPostgisSchemas(connstring)
-                print 'connstring', connstring
-            except:
-                print 'error'
-                pass
+            self.get_connstring(selected_db)
+            schemas = getPostgisSchemas(self.connstring)
+            print 'connstring', self.connstring
         self.schemaCombo.addItems(schemas)
+
+    def get_connstring(self, selected_db):
+        db_info = self.available_dbs[selected_db]
+        print 'tries', db_info, selected_db
+        self.connstring = ''
+        try:
+            db_info['user'] = db_info['username']
+            del db_info['username']
+        except KeyError:
+            pass
+        for k, v in db_info.items():
+            self.connstring += str(k) + '=' + str(v) + ' '
+        if 'service' in db_info.keys():
+            pass
+        else:
+            self.connstring += 'dbname=' + str(selected_db)
+        return
 
     def closeEvent(self, event):
         self.closingPlugin.emit()
