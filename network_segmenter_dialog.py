@@ -88,8 +88,10 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.memoryRadioButton.clicked.connect(self.update_output_text)
         self.shpRadioButton.clicked.connect(self.setShpOutput)
 
-        if self.memoryRadioButton.isChecked():
-            self.outputCleaned.setText(self.getNetwork() + "_seg")
+        #if self.memoryRadioButton.isChecked():
+        #    self.outputCleaned.setText(self.getNetwork() + "_seg")
+        #if self.postgisRadioButton.isChecked():
+        #    self.dbsettings_dlg.nameLineEdit.setText(self.getNetwork() + "_seg")
 
     def closeEvent(self, event):
         self.closingPlugin.emit()
@@ -201,6 +203,8 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.disable_browse()
         if self.postgisRadioButton.isChecked():
             self.outputCleaned.clear()
+            table_name = self.getNetwork() + "_seg"
+            self.dbsettings_dlg.nameLineEdit.setText(table_name)
             try:
                 self.dbsettings = self.dbsettings_dlg.getDbSettings()
                 db_layer_name = "%s:%s:%s" % (self.dbsettings['dbname'], self.dbsettings['schema'], self.dbsettings['table_name'])

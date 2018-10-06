@@ -30,10 +30,49 @@ QgsMapLayerRegistry.instance().addMapLayer(errors)
 
 print 'process time', time.time() - start_time
 
+con_settings = []
+settings = QSettings()
+settings.beginGroup('/PostgreSQL/connections')
+for item in settings.childGroups():
+    con = dict()
+    con['name'] = unicode(item)
+    con['host'] = unicode(settings.value(u'%s/host' % unicode(item)))
+    if con['host'] == 'NULL':
+        del con['host']
+        con['service'] = unicode(settings.value(u'%s/service' % unicode(item)))
+    else:
+        con['port'] = unicode(settings.value(u'%s/port' % unicode(item)))
+        con['database'] = unicode(settings.value(u'%s/database' % unicode(item)))
+        con['username'] = unicode(settings.value(u'%s/username' % unicode(item)))
+        if con['username'] == 'NULL':
+            del con['username']
+        con['password'] = unicode(settings.value(u'%s/password' % unicode(item)))
+        if con['password'] == 'NULL':
+            del con['password']
+        con_settings.append(con)
 
 
-for layer in QgsMapLayerRegistry.instance().mapLayers().values():
-    layer.loadNamedStyle('path/to/qml/file')
+
+settings.endGroup()
+dbs = {}
+if len(con_settings) > 0:
+    for conn in con_settings:
+        dbs[conn['name']] = conn
+
+
+
+
+
+settings.endGroup()
+dbs = {}
+if len(con_settings) > 0:
+    for conn in con_settings:
+        dbs[conn['name']]= conn
+return dbs
+
+
+
+
 
 
 

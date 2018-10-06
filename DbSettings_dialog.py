@@ -48,8 +48,6 @@ class DbSettingsDialog(QtGui.QDialog, FORM_CLASS):
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
 
-        #TODO: layer name + '_segm'
-        self.nameLineEdit.setText("segmented")
         self.available_dbs = available_dbs
 
         self.okButton.clicked.connect(self.close)
@@ -57,7 +55,6 @@ class DbSettingsDialog(QtGui.QDialog, FORM_CLASS):
         self.dbCombo.currentIndexChanged.connect(self.setDbOutput)
         self.schemaCombo.currentIndexChanged.connect(self.setDbOutput)
         self.nameLineEdit.textChanged.connect(self.setDbOutput)
-
 
         self.popDbs()
         if self.dbCombo.currentText() in self.available_dbs.keys():
@@ -74,13 +71,9 @@ class DbSettingsDialog(QtGui.QDialog, FORM_CLASS):
     def getDbSettings(self):
         connection = self.dbCombo.currentText()
         if connection in self.available_dbs.keys():
-            return {'dbname': self.available_dbs[connection]['name'],
-        'user': self.available_dbs[connection]['username'],
-        'host': self.available_dbs[connection]['host'],
-        'port': self.available_dbs[connection]['port'],
-        'password': self.available_dbs[connection]['password'],
-        'schema': self.schemaCombo.currentText(),
-        'table_name': self.nameLineEdit.text()}
+            return {'dbname': connection,
+                    'schema': self.schemaCombo.currentText(),
+                    'table_name': self.nameLineEdit.text()}
         else:
             return {}
 
@@ -90,19 +83,22 @@ class DbSettingsDialog(QtGui.QDialog, FORM_CLASS):
         selected_db = self.getSelectedDb()
         if len(self.getSelectedDb()) > 1:
             try:
-                print 'tries'
-                uri = QgsDataSourceURI()
                 db_info = self.available_dbs[selected_db]
-                print db_info, selected_db
-                conname = selected_db
-                dbname = db_info['database']
-                user = db_info['username']
-                host = db_info['host']
-                port = db_info['port']
-                password = db_info['password']
-                uri.setConnection(host, port, dbname, user, password)
-                connstring = "dbname=%s user=%s host=%s port=%s password=%s" % (dbname, user, host, port, password)
+                print 'tries', db_info, selected_db
+                connstring = ''
+                try:
+                    db_info['user'] = db_info['username']
+                    del db_info['username']
+                except KeyError:
+                    pass
+                for k, v in db_info.items():
+                    connstring += str(k) + '=' + str(v) + ' '
+                if 'service' in db_info.keys():
+                    pass
+                else:
+                    connstring += 'dbname=' + str(selected_db)
                 schemas = getPostgisSchemas(connstring)
+                print 'connstring', connstring
             except:
                 print 'error'
                 pass

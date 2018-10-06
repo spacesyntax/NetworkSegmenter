@@ -30,6 +30,7 @@ from qgis.gui import *
 from qgis.utils import *
 import time
 import os
+import itertools, operator
 
 from network_segmenter_dialog import NetworkSegmenterDialog
 from segment_tools import *  # better give these a name to make it explicit to which module the methods belong
@@ -112,23 +113,15 @@ class NetworkSegmenterTool(QObject):
         """Return all PostGIS connection settings stored in QGIS
         :return: connection dict() with name and other settings
         """
+        # TODO: deal with pgservice/pgpass
         con_settings = []
         settings = QSettings()
         settings.beginGroup('/PostgreSQL/connections')
-        for item in settings.childGroups():
-            con = dict()
-            con['name'] = unicode(item)
-            con['host'] = unicode(settings.value(u'%s/host' % unicode(item)))
-            con['port'] = unicode(settings.value(u'%s/port' % unicode(item)))
-            con['database'] = unicode(settings.value(u'%s/database' % unicode(item)))
-            con['username'] = unicode(settings.value(u'%s/username' % unicode(item)))
-            con['password'] = unicode(settings.value(u'%s/password' % unicode(item)))
-            con_settings.append(con)
+        named_dbs = settings.childGroups()
+        all_info = [i.split("/") + [unicode(settings.value(i))] for i in settings.allKeys() if settings.value(i) != NULL]
+        all_info = [i for i in all_info if i[0] in named_dbs and i[2] != NULL and i[1] in ['name', 'host', 'service', 'password', 'username', 'port']]
+        dbs = dict([k, dict([i[1:] for i in list(g)])] for k, g in itertools.groupby(sorted(all_info), operator.itemgetter(0)))
         settings.endGroup()
-        dbs = {}
-        if len(con_settings) > 0:
-            for conn in con_settings:
-                dbs[conn['name']]= conn
         return dbs
 
     def getActiveLayers(self):
