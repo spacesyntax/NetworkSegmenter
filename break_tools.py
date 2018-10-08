@@ -1,6 +1,7 @@
 import itertools
 from PyQt4.QtCore import QObject, pyqtSignal, QVariant
 from qgis.core import QgsSpatialIndex, QgsGeometry, QgsDistanceArea, QgsFeature, QgsField, QgsFields
+from collections import Counter
 
 # read graph - as feat
 class break_tools(QObject):
@@ -31,7 +32,7 @@ class break_tools(QObject):
         self.topology = {}
         self.nodes_coords = {}
 
-        self.id = 0
+        self.edges_id = 0
         self.node_id = 0
         self.step = self.layer.featureCount()
 
@@ -47,7 +48,7 @@ class break_tools(QObject):
         self.snaps = [] #
         self.self_intersections = [] #
         self.closed_polylines = []
-        self.breaks = [] #
+        self.break_points = [] #
         self.merges = [] #
         self.collinear = [] #
 
@@ -87,72 +88,163 @@ class break_tools(QObject):
         copy_feat.setFeatureId(id)
         return copy_feat
 
-    def clean(self):
-        self.load_features()
+
+    # 0. LOAD GRAPH FUNCTION -------------------------------------
+    # only 1 time execution permitted
+
+    def load_graph(self):
+        self.nodes_coords = {}
+        self.load_features_iter()
+        self.clean_orphans_duplicates()
+
         if self.snap_threshold:
-            # use feat iter to create self.feats and coords
-            # create nodes with spIndex
-            indexed_nodes = {}
-            self.nodes_id = 0
-            self.nodes_coords = dict(map(lambda f:self.load_node_coord(f), self.load_features_iter()))
+            res = map(lambda snode: self.ndSpIndex.insert(snode.feature), self.sNodes.values())
 
             # group based on distance
             self.combined = []
             res = map(lambda i: self.con_comp(i), self.nodes_closest_iter())
-            self.combined = dict(zip(range(self.nodes_id, len(self.combined) + self.nodes_id), self.combined))
-            # merge
-            res =
-            # update self.nodes_coords
-            # update feats
-            # feats to edges
-        else:
-            # use feat iter to create self.edges (from f , node otf)
-            # feats to edges, nodes
+            new_node_ids = range(self.nodes_id, len(self.combined) + self.nodes_id)
+            self.combined = dict(zip(new_node_ids, self.combined))
+            self.nodes_id += len(self.combined)
+            res = map(lambda (merged_node_id, group_nodes): self.snap_edges(group_nodes, merged_node_id),
+                      self.combined.items())
+            del res
 
-        if self.remove_orphans:
-            # remove where both endpoints connectivity = 1
-        if self.remove_islands:
+        # del self.nodes_coords  # do not update self.nodes_coords
+        return
 
-        if self.break_com_vertices:
+    # 1. REMOVE ORPHANS/ DUPLICATES ------------------------------
 
-        if self.merge_btw_intersections:
+    def clean_orphans_duplicates(self):
+        # {frozenset} : edge
+        node_node_dict, duplicates = {}, []
+        for sedge in self.sEdges.values():
+            delete = False
+            if len(self.sNodes[self.sedge.startid]) == len(self.sNodes[self.sedge.endid]) == 1:
+                self.orphans.append(sedge.id)
+                del self.sNodes[self.sedge.startid]
+                del self.sNodes[self.sedge.endid]
+                delete = True
+            else:
+                try:
+                    node_node_dict[frozenset({sedge.startid, sedge.endid})].append(sedge.id)
+                    self.duplicates.append(sedge.id)
+                    delete = True
+                except KeyError:
+                    node_node_dict[frozenset({sedge.startid, sedge.endid})] = [sedge.id]
+            if delete:
+                # if orphan nodes have been deleted - if duplicate nodes are managed by set structure
+                del self.sEdges[sedge.id]
+        return
 
-        elif self.merge_collinear:
+    # 2. SNAP FUNCTION -------------------------------------------
 
-    def load_node_coord(self, f):
-        self.feats[f.id()] = f
-        f_pl = f.geometry().asPolyline()
-        for endp in (0,-1):
-            try:
-                visited_id = self.nodes_coords[f_pl[endp]]
-            except KeyError:
-                nd_feat = QgsFeature()
-                nd_feat.setGeometry(QgsGeometry.fromPoint(f_pl[endp]))
-                nd_feat.setFeatureId(self.node_id)
-                nd_feat.setAttributes([self.node_id])
-                self.ndSpIndex.insertFeature(nd_feat)
-                self.node_id += 1
-                yield self.nodes_id -1, f_pl[endp]
+    def snap_edges(self, group_nodes, merged_node_id):
+        # create merged_node
+        group_edges = map(lambda node: self.sNodes[node], group_nodes)
+        group_edges = itertools.chain.from_iterable(group_edges)
+        centroid = QgsGeometry.fromMultiPoint(
+            [self.sNodes[node_id].feature.geometry().asPoint() for node_id in group_nodes]).centroid()
+        merged_node = sNode(
+            self.copy_feat(self.node_prototype, QgsGeometry.fromPoint(centroid), merged_node_id),
+            merged_node_id, group_edges)
+        self.sNodes[merged_node_id] = merged_node
+        for edge in group_edges:
+            edge_copy = self.sEdges(edge)
+            if {edge_copy.startid}.intersection(group_nodes) == {edge_copy.startid}:
+                edge_copy.updateStartNode(merged_node)
+            if {edge_copy.endid}.intersection(group_nodes) == {edge_copy.endid}:
+                edge_copy.updateEndNode(merged_node)
+        # TODO: del self.sNodes
+        return
 
-    def create_topology(self):
+    # 3. BREAK FUNCTION -------------------------------------------
+    # break at common vertices
+    # overlaps
+    # closed polylines
 
-    # only 1 time execution permitted
-    def load_features_iter(self):
-        id = 0
+    def break_edges(self):
+        broken_sedges = {}
+        for sedge in list(self.sEdges.values()):
+            res = map(lambda broken_pl, broken_id: self.add_edge(self.copy_feat(sedge.feature, QgsGeometry.fromPolyline(broken_pl), broken_id)), self.break_edge_iter(sedge) )
+
+    def add_edge(self, feature):
+        pl = feature.geometry().asPolyline()
+        startid, endid = self.create_topology(pl[0], pl[-1])
+        self.sEdges[feature.id()] = sEdge(feature, startid, endid)
+        return True
+
+    def break_edge_iter(self, sedge):
+        f_geom = sedge.feature.geometry()
+        f_geom_pl = f_geom.asPolyline()
+        interlines = filter(lambda line: f_geom.distance(self.sEdges[line].feature.geometry()) <= 0,
+                            self.spIndex.intersects(f_geom.boundingBox()))
+        break_points = []
+        for line in interlines:
+            inter = f_geom.intersection(self.sEdges[line].feature.geometry())
+            if inter.wkbType() == 1:
+                if len({inter.asPoint()}.intersection(set(f_geom_pl))) > 0:
+                    break_points.append(inter.asPoint())
+            elif inter.wkbType() == 4:
+                for p in inter.asMultiPoint():
+                    if len({p}.intersection(set(f_geom_pl))) > 0:
+                        break_points += p
+            elif inter.wkbType() == 2:
+                for p in inter.asPolyline():
+                    if len({p}.intersection(set(f_geom_pl))) > 0:
+                        break_points += p
+                        self.overlaps.update({line, sedge.id})
+            elif inter.wkbType() == 5:
+                for pl in inter.asMultiPolyline():
+                    for p in pl:
+                        if len({p}.intersection(set(f_geom_pl))) > 0:
+                            break_points += p
+                            self.overlaps.update({line, sedge.id})
+
+        self.break_points.update(set(break_points))
+        # TODO remove edge
+        for points in :
+            self.edges_id += 1
+            yield broken_pl, self.edges_id - 1
+
+    # 4. MERGE FUNCTION -------------------------------------------
+    # merge between intersections OR
+    # merge collinear
+
+    def create_topology(self, startpoint, endpoint):
+        try:
+            start_id = self.nodes_coords[startpoint]
+        except KeyError:
+            self.nodes_coords[startpoint] = self.nodes_id
+            start_id = self.nodes_id
+            self.sNodes[start_id] = sNode(self.copy_feat(self.node_prototype, QgsGeometry.fromPoint(startpoint), start_id), start_id, {})
+            self.nodes_id += 1
+        try:
+            end_id = self.nodes_coords[endpoint]
+        except KeyError:
+            self.nodes_coords[endpoint] = self.nodes_id
+            end_id = self.nodes_id
+            self.sNodes[end_id] = sNode(self.copy_feat(self.node_prototype, QgsGeometry.fromPoint(endpoint), end_id), end_id, {})
+            self.nodes_id += 1
+
+        self.sNodes[start_id].update({self.edges_id})
+        self.sNodes[end_id].update({self.edges_id})
+
+        return start_id, end_id
+
+    def load_features(self):
+
+        # NULL, points, invalids, mlparts # TODO: add dropZValue()
         for f in self.layer.getFeatures():
 
             #self.progress.emit(self.step)
-            if self.killed is True:
-                break
 
             f_geom = f.geometry()
-            # NULL, points, invalids, mlparts
-
-            # TODO: add dropZValue()
-
             f_geom_length = f_geom.length()
 
-            if f_geom is NULL:
+            if self.killed is True:
+                break
+            elif f_geom is NULL:
                 self.empty_geometries.append(f.id())
             elif not f_geom.isGeosValid():
                 self.invalids.append(f.id())
@@ -161,25 +253,22 @@ class break_tools(QObject):
             elif 0 < f_geom_length < self.snap_threshold:
                 pass # do not add to the graph - as it will be removed later
             elif f_geom.wkbType() == 2:
-                f.setFeatureId(id)
-                id += 1
+                f.setFeatureId(self.edges_id)
                 f_pl = f_geom.asPolyline()
-                for pnt in f_pl[0, -1]:
-                    try:
-                        ex_id = self.nodes_coords[pnt]
-
-                    except KeyError:
-
-
-
+                self.spIndex.insertFeature(f)
+                start_id, end_id = self.create_topology(f_pl[0], f_pl[-1])
+                self.sEdges = sEdge(f, self.edges_id, start_id, end_id)
+                self.edges_id += 1
             elif f_geom.wkbType() == 5:
                 ml_segms = f_geom.asMultiPolyline()
                 for ml in ml_segms:
                     ml_geom = QgsGeometry(ml)
-                    ml_feat = self.copy_feat(f, ml_geom, id)
-                    id += 1
-                    yield ml_feat
-        self.id = id
+                    ml_feat = self.copy_feat(f, ml_geom, self.edges_id)
+                    self.spIndex.insertFeature(ml_feat)
+                    f_pl = ml_geom.asPolyline()
+                    start_id, end_id = self.create_topology(f_pl[0], f_pl[-1])
+                    self.sEdges = sEdge(ml_feat, self.edges_id, start_id, end_id)
+                    self.edges_id += 1
 
     def kill(self):
         self.killed = True
