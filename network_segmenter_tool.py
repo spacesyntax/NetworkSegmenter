@@ -113,12 +113,10 @@ class NetworkSegmenterTool(QObject):
         """Return all PostGIS connection settings stored in QGIS
         :return: connection dict() with name and other settings
         """
-        # TODO: deal with pgservice/pgpass
-        con_settings = []
         settings = QSettings()
         settings.beginGroup('/PostgreSQL/connections')
         named_dbs = settings.childGroups()
-        all_info = [i.split("/") + [unicode(settings.value(i))] for i in settings.allKeys() if settings.value(i) != NULL]
+        all_info = [i.split("/") + [unicode(settings.value(i))] for i in settings.allKeys() if settings.value(i) != NULL and settings.value(i)!= '']
         all_info = [i for i in all_info if i[0] in named_dbs and i[2] != NULL and i[1] in ['name', 'host', 'service', 'password', 'username', 'port']]
         dbs = dict([k, dict([i[1:] for i in list(g)])] for k, g in itertools.groupby(sorted(all_info), operator.itemgetter(0)))
         settings.endGroup()
