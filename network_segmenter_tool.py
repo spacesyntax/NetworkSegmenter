@@ -131,7 +131,6 @@ class NetworkSegmenterTool(QObject):
         return layers_list
 
     def updateLayers(self):
-        print 'called - updateLayers'
         layers = self.getActiveLayers()
         self.dlg.popActiveLayers(layers)
 
