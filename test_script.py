@@ -10,7 +10,7 @@ layer = getLayerByName('axial_map_m25')
 unlinks = getLayerByName('axial_map_m25_u')
 #layer = getLayerByName('merged_mixed_model1')
 #unlinks = None
-stub_ratio = None
+stub_ratio = 0.4
 buffer = 0
 errors = True
 # my_segmentor = segmentor(layer, None, stub_ratio, None)
@@ -20,6 +20,11 @@ my_segmentor.step = 10 / float(my_segmentor.layer.featureCount())
 my_segmentor.load_graph()
 
 break_lines, break_points = my_segmentor.segment()
+
+
+for f in my_segmentor.list_iter(my_segmentor.feats.values()):
+    cross_p = my_segmentor.break_segm(f)
+
 print 'process time', time.time() - start_time
 print 'finished'
 

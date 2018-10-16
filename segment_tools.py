@@ -2,7 +2,11 @@ import itertools
 from PyQt4.QtCore import QObject, pyqtSignal, QVariant
 from qgis.core import QgsSpatialIndex, QgsGeometry, QgsDistanceArea, QgsFeature, QgsField, QgsFields
 import traceback
-from utilityFunctions import prototype_feature
+
+try:
+    from utilityFunctions import prototype_feature
+except ImportError:
+    pass
 
 # read graph - as feat
 class segmentor(QObject):
@@ -165,7 +169,7 @@ class segmentor(QObject):
 
     def stubs_clean_iter(self, cross_p, f_pl):
         for pnt in cross_p[:1]:
-            if QgsDistanceArea().measureLine(pnt, cross_p[1])/ QgsDistanceArea().measureLine(pnt, f_pl[1]) > 0.4:
+            if QgsDistanceArea().measureLine(pnt, cross_p[1]) >= self.stub_ratio * QgsDistanceArea().measureLine(pnt, f_pl[1]):
                 yield pnt
             elif self.connectivity[(pnt.x(), pnt.y())] == 1:
                 self.stubs_points.append(pnt)
@@ -175,7 +179,7 @@ class segmentor(QObject):
         for pnt in cross_p[1:-1]:
             yield pnt
         for pnt in cross_p[-1:]:
-            if QgsDistanceArea().measureLine(pnt, cross_p[-2])/ QgsDistanceArea().measureLine(pnt, f_pl[-2]) > 0.4:
+            if QgsDistanceArea().measureLine(pnt, cross_p[-2]) >= self.stub_ratio * QgsDistanceArea().measureLine(pnt, f_pl[-2]):
                 yield pnt
             elif self.connectivity[(pnt.x(), pnt.y())] == 1:
                 self.stubs_points.append(pnt)

@@ -75,7 +75,7 @@ class NetworkSegmenterTool(QObject):
         self.updateLayers()
         self.updateUnlinksLayers()
 
-        self.dlg.outputCleaned.setText(self.getActiveLayers()[0] + "_seg")
+        self.dlg.outputCleaned.setText(self.dlg.inputCombo.currentText() + "_seg")
         self.dlg.inputCombo.currentIndexChanged.connect(self.updateOutputName)
 
         # setup legend interface signals
@@ -99,13 +99,13 @@ class NetworkSegmenterTool(QObject):
             self.dlg.runButton.clicked.disconnect(self.startWorker)
             self.dlg.cancelButton.clicked.disconnect(self.killWorker)
             self.settings = None
-        try:
-            self.legend.itemAdded.disconnect(self.updateLayers)
-            self.legend.itemRemoved.disconnect(self.updateLayers)
-            self.legend.itemAdded.disconnect(self.updateUnlinksLayers)
-            self.legend.itemRemoved.disconnect(self.updateUnlinksLayers)
-        except TypeError:
-            pass
+        #try:
+        self.legend.itemAdded.disconnect(self.updateLayers)
+        self.legend.itemRemoved.disconnect(self.updateLayers)
+        self.legend.itemAdded.disconnect(self.updateUnlinksLayers)
+        self.legend.itemRemoved.disconnect(self.updateUnlinksLayers)
+        #except TypeError:
+        #    pass
 
         self.dlg = None
 
@@ -125,12 +125,13 @@ class NetworkSegmenterTool(QObject):
     def getActiveLayers(self):
         layers_list = []
         for layer in self.iface.legendInterface().layers():
-            if layer.isValid() and layer.type() == QgsMapLayer.VectorLayer:
+            if layer.isValid():# and isinstance(layer, QgsVectorLayer):
                 if layer.hasGeometryType() and (layer.geometryType() == 1):
                     layers_list.append(layer.name())
         return layers_list
 
     def updateLayers(self):
+        print 'called - updateLayers'
         layers = self.getActiveLayers()
         self.dlg.popActiveLayers(layers)
 
@@ -140,7 +141,7 @@ class NetworkSegmenterTool(QObject):
     def getpntplgLayers(self):
         layers_list = []
         for layer in self.iface.legendInterface().layers():
-            if layer.isValid() and layer.type() == QgsMapLayer.VectorLayer:
+            if layer.isValid():# and isinstance(layer, QgsVectorLayer):
                 if layer.hasGeometryType() and (layer.geometryType() in [0, 2]):
                     layers_list.append(layer.name())
         return layers_list
@@ -203,13 +204,13 @@ class NetworkSegmenterTool(QObject):
         #  get settings from layer
         layer = getLayerByName(layer_name)
         # create the segmenting results layers
-
-        # clean up the worker and thread
-        self.segmenting.finished.disconnect(self.workerFinished)
-        self.segmenting.error.disconnect(self.workerError)
-        self.segmenting.warning.disconnect(self.giveMessage)
-        self.segmenting.segm_progress.disconnect(self.dlg.segmentingProgress.setValue)
-        #self.segmenting.my_segmentor.progress.disconnect(self.segm_progress.emit)
+        if self.segmenting:
+            # clean up the worker and thread
+            self.segmenting.finished.disconnect(self.workerFinished)
+            self.segmenting.error.disconnect(self.workerError)
+            self.segmenting.warning.disconnect(self.giveMessage)
+            self.segmenting.segm_progress.disconnect(self.dlg.segmentingProgress.setValue)
+            #self.segmenting.my_segmentor.progress.disconnect(self.segm_progress.emit)
 
         self.thread.deleteLater()
         self.thread.quit()

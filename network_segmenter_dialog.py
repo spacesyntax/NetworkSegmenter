@@ -135,7 +135,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
     def getStubRatio(self):
         if self.stubsCheckBox.isChecked():
-            return self.stubsSpin.value()
+            return self.stubsSpin.value()/(float(100))
         else:
             return None
 
