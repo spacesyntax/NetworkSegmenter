@@ -2,6 +2,7 @@
 from qgis.core import QgsMapLayerRegistry, QgsVectorFileWriter, QgsVectorLayer, QgsFeature, QgsGeometry,QgsFields, QgsDataSourceURI, QgsField, QgsCoordinateReferenceSystem, QgsVectorLayerImport
 import psycopg2
 from psycopg2.extensions import AsIs
+import ntpath
 
 # source: ess utility functions
 
@@ -90,6 +91,8 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
         if file_writer.hasError() != QgsVectorFileWriter.NoError:
             print "Error when creating shapefile: ", file_writer.errorMessage()
         del file_writer
+        name = ntpath.basename(path)
+        # TODO: get name from path 
         layer = QgsVectorLayer(path, name, "ogr")
         pr = layer.dataProvider()
         layer.startEditing()
@@ -138,7 +141,7 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
             con.commit()
             con.close()
 
-            layer = QgsVectorLayer(uri, name, 'postgres')
+            layer = QgsVectorLayer(uri, table_name, 'postgres')
         except psycopg2.DatabaseError, e:
             print e
     else:
