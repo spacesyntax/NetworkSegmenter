@@ -247,7 +247,6 @@ class NetworkSegmenterTool(QObject):
         if self.dlg:
             self.dlg.segmentingProgress.reset()
             self.dlg.close()
-            self.unloadGUI()
 
     def killWorker(self):
         #if is_debug:
