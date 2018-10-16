@@ -125,7 +125,7 @@ class NetworkSegmenterTool(QObject):
     def getActiveLayers(self):
         layers_list = []
         for layer in self.iface.legendInterface().layers():
-            if layer.isValid():# and isinstance(layer, QgsVectorLayer):
+            if layer.isValid() and layer.type() == QgsMapLayer.VectorLayer:
                 if layer.hasGeometryType() and (layer.geometryType() == 1):
                     layers_list.append(layer.name())
         return layers_list
@@ -141,7 +141,7 @@ class NetworkSegmenterTool(QObject):
     def getpntplgLayers(self):
         layers_list = []
         for layer in self.iface.legendInterface().layers():
-            if layer.isValid():# and isinstance(layer, QgsVectorLayer):
+            if layer.isValid() and layer.type() == QgsMapLayer.VectorLayer:
                 if layer.hasGeometryType() and (layer.geometryType() in [0, 2]):
                     layers_list.append(layer.name())
         return layers_list
@@ -248,6 +248,7 @@ class NetworkSegmenterTool(QObject):
         if self.dlg:
             self.dlg.segmentingProgress.reset()
             self.dlg.close()
+            self.unloadGUI()
 
     def killWorker(self):
         #if is_debug:
@@ -257,7 +258,10 @@ class NetworkSegmenterTool(QObject):
             self.segmenting.finished.disconnect(self.workerFinished)
             self.segmenting.error.disconnect(self.workerError)
             self.segmenting.warning.disconnect(self.giveMessage)
-            self.segmenting.segm_progress.disconnect(self.dlg.segmentingProgress.setValue)
+            try: # it might not have been connected already
+                self.segmenting.segm_progress.disconnect(self.dlg.segmentingProgress.setValue)
+            except TypeError:
+                pass
             # Clean up thread and analysis
             self.segmenting.kill()
             self.segmenting.my_segmentor.kill()

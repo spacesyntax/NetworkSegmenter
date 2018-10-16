@@ -199,3 +199,4 @@ class NetworkSegmenter:
     def run(self):
         """Run method that performs all the real work"""
         self.network_segmenter_tool.loadGUI()
+

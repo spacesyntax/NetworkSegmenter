@@ -206,6 +206,8 @@ class segmentor(QObject):
             f_geom = f.geometry()
             if self.killed is True:
                 break
+            elif not f.geometry(): # NULL geometries
+                pass
             elif f_geom.length() == 0:
                 pass
             elif f_geom.wkbType() == 2:
