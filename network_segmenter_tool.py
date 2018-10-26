@@ -75,7 +75,9 @@ class NetworkSegmenterTool(QObject):
         self.updateLayers()
         self.updateUnlinksLayers()
 
-        self.dlg.outputCleaned.setText(self.dlg.inputCombo.currentText() + "_seg")
+        if self.dlg.getNetwork():
+            self.dlg.outputCleaned.setText(self.dlg.inputCombo.currentText() + "_seg")
+            self.dlg.dbsettings_dlg.nameLineEdit.setText(self.dlg.inputCombo.currentText() + "_seg")
         self.dlg.inputCombo.currentIndexChanged.connect(self.updateOutputName)
 
         # setup legend interface signals
@@ -136,6 +138,7 @@ class NetworkSegmenterTool(QObject):
 
     def updateOutputName(self):
         self.dlg.outputCleaned.setText(self.dlg.inputCombo.currentText() + "_seg")
+        self.dlg.dbsettings_dlg.nameLineEdit.setText(self.dlg.inputCombo.currentText() + "_seg")
 
     def getpntplgLayers(self):
         layers_list = []
@@ -169,6 +172,7 @@ class NetworkSegmenterTool(QObject):
 
         if self.settings['input']:
             segmenting = self.Worker(self.settings , self.iface)
+            self.dlg.lockGUI(True)
             # start the segmenting in a new thread
             thread = QThread()
             segmenting.moveToThread(thread)
@@ -194,6 +198,7 @@ class NetworkSegmenterTool(QObject):
         #if is_debug:
         print 'trying to finish'
         # get segmenting settings
+        self.dlg.lockGUI(False)
         layer_name = self.settings['input']
         path = self.settings['output']
         output_type = self.settings['output_type']
