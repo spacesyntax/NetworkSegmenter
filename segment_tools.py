@@ -90,6 +90,21 @@ class segmentor(QObject):
             elif inter.wkbType() == 4:
                 for i in inter.asMultiPoint():
                     yield ml_geom.lineLocatePoint(QgsGeometry.fromPoint(i)), i
+            else:
+                inter_line_geom_pl = self.feats[line].geometry().asPolyline()
+                sh_line = (ml_geom.shortestLine(self.feats[line].geometry())).asPolyline()
+                if sh_line[0] in inter_line_geom_pl:
+                    if sh_line[0] == inter_line_geom_pl[0]:
+                        self.feats[line].geometry().moveVertex(sh_line[-1].x(), sh_line[-1].y(), 0)
+                    if sh_line[0] == inter_line_geom_pl[-1]:
+                        self.feats[line].geometry().moveVertex(sh_line[-1].x(), sh_line[-1].y(), len(inter_line_geom_pl) - 1)
+                    yield ml_geom.lineLocatePoint(QgsGeometry.fromPoint(sh_line[-1])), sh_line[-1]
+                else:
+                    if sh_line[-1] == inter_line_geom_pl[0]:
+                        self.feats[line].geometry().moveVertex(sh_line[0].x(), sh_line[0].y(), 0)
+                    if sh_line[-1] == inter_line_geom_pl[-1]:
+                        self.feats[line].geometry().moveVertex(sh_line[0].x(), sh_line[0].y(), len(inter_line_geom_pl) - 1)
+                    yield ml_geom.lineLocatePoint(QgsGeometry.fromPoint(sh_line[0])), sh_line[0]
         ml_pl = ml_geom.asPolyline()
         pl_len = 0  # executed first time
         yield pl_len, ml_pl[0]
@@ -104,7 +119,7 @@ class segmentor(QObject):
     def break_segm(self, feat):
 
         f_geom = feat.geometry()
-        inter_lines = filter(lambda line: feat.geometry().distance(self.feats[line].geometry()) <= 0,
+        inter_lines = filter(lambda line: feat.geometry().distance(self.feats[line].geometry()) <= 0.00001,
                              self.spIndex.intersects(f_geom.boundingBox()))
         cross_p = [p for (factor, p) in sorted(set(self.point_iter(inter_lines, f_geom))) if p not in self.unlinks_points[feat.id()]]
 
@@ -161,6 +176,7 @@ class segmentor(QObject):
                 ids = [i for i in range(max(ids1 + ids2) + 1, max(ids1 + ids2) + 1 + len(self.stubs_points))]
                 stubs_point_feats = map(lambda (p, fid): self.copy_feat(self.stub_f, QgsGeometry.fromPoint(p), fid), (zip(self.stubs_points, ids)))
 
+
         except Exception, exc:
             print exc, traceback.format_exc()
             # TODO: self.error.emit(exc, traceback.format_exc())
@@ -169,6 +185,7 @@ class segmentor(QObject):
 
     def stubs_clean_iter(self, cross_p, f_pl):
         for pnt in cross_p[:1]:
+
             if QgsDistanceArea().measureLine(pnt, cross_p[1]) >= self.stub_ratio * QgsDistanceArea().measureLine(pnt, f_pl[1]):
                 yield pnt
             elif self.connectivity[(pnt.x(), pnt.y())] == 1:
@@ -229,7 +246,7 @@ class segmentor(QObject):
             elif f_geom.wkbType() == 5:
                 ml_segms = f_geom.asMultiPolyline()
                 for ml in ml_segms:
-                    ml_geom = QgsGeometry(ml)
+                    ml_geom = QgsGeometry.fromPolyline(ml)
                     ml_feat = self.copy_feat(f, ml_geom, id)
                     self.feats[id] = ml_feat
                     id += 1

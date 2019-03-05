@@ -1,15 +1,16 @@
-execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
-execfile(u'C:/Users/I.Kolovou/Documents/GitHub/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
+execfile(u'/Users/i.kolovou/Documents/Github/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
+execfile(u'/Users/i.kolovou/Documents/Github/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
+
 
 import time
 execfile(u'/Users/joe/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
 execfile(u'/Users/joe/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
 
 start_time = time.time()
-layer = getLayerByName('axial_map_m25')
+layer = getLayerByName('r_osm_simpl')
 unlinks = getLayerByName('axial_map_m25_u')
 #layer = getLayerByName('merged_mixed_model1')
-#unlinks = None
+unlinks = None
 stub_ratio = 0.4
 buffer = 0
 errors = True

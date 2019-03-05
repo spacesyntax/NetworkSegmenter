@@ -226,7 +226,7 @@ class NetworkSegmenterTool(QObject):
             break_lines, break_points = ret
             print len(break_lines), 'ret'
             segmented = to_layer(break_lines, layer.crs(), layer.dataProvider().encoding(),
-                                 layer.dataProvider().geometryType(), output_type, path,
+                                 2, output_type, path,
                                  layer_name + '_seg')
             QgsMapLayerRegistry.instance().addMapLayer(segmented)
             segmented.updateExtents()
@@ -350,6 +350,7 @@ class NetworkSegmenterTool(QObject):
                 self.my_segmentor.progress.disconnect()
 
             except Exception, e:
+                print e
                 self.error.emit(e, traceback.format_exc())
 
             #print "survived!"
