@@ -139,6 +139,9 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
             ins_str = cur.mogrify("""INSERT INTO %s.%s VALUES """, (AsIs(schema_name), AsIs(table_name)))
             cur.execute(ins_str + args_str)
             con.commit()
+            query = cur.mogrify( """ALTER TABLE %s.%s DROP COLUMN IF EXISTS segm_id, ADD COLUMN segm_id serial PRIMARY KEY""", (AsIs(schema_name), AsIs(table_name)))
+            cur.execute(query)
+            con.commit()
             con.close()
 
             layer = QgsVectorLayer(uri, table_name, 'postgres')

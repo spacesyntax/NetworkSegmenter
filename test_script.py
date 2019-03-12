@@ -7,8 +7,8 @@ execfile(u'/Users/joe/NetworkSegmenter/segment_tools.py'.encode('utf-8'))
 execfile(u'/Users/joe/NetworkSegmenter/utilityFunctions.py'.encode('utf-8'))
 
 start_time = time.time()
-layer = getLayerByName('r_osm_simpl')
-unlinks = getLayerByName('axial_map_m25_u')
+layer = getLayerByName('spm_cl')
+unlinks = getLayerByName('spm_u')
 #layer = getLayerByName('merged_mixed_model1')
 unlinks = None
 stub_ratio = 0.4
@@ -20,7 +20,7 @@ my_segmentor = segmentor(layer, unlinks, stub_ratio, buffer, errors)
 my_segmentor.step = 10 / float(my_segmentor.layer.featureCount())
 my_segmentor.load_graph()
 
-break_lines, break_points = my_segmentor.segment()
+#break_lines, break_points = my_segmentor.segment()
 
 
 for f in my_segmentor.list_iter(my_segmentor.feats.values()):

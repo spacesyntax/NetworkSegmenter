@@ -62,7 +62,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
         self.bufferSpinBox.setSuffix('m')
         self.bufferSpinBox.setRange(0, 50)
-        self.bufferSpinBox.setSingleStep(1)
+        self.bufferSpinBox.setSingleStep(0.01)
         self.bufferSpinBox.setValue(0)
         self.bufferSpinBox.setDisabled(False)
 
@@ -132,6 +132,10 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.disable_browse()
         self.breakagesCheckBox.setDisabled(onoff)
         self.runButton.setDisabled(onoff)
+        self.bufferSpinBox.setDisabled(onoff)
+        self.stubsSpin.setDisabled(onoff)
+        self.inputCombo.setDisabled(onoff)
+        self.unlinksCombo.setDisabled(onoff)
 
     def getStubRatio(self):
         if self.stubsCheckBox.isChecked():

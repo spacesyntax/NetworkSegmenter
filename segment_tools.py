@@ -57,19 +57,20 @@ class segmentor(QObject):
     def load_unlink(self, unlink): # TODO buffer not allowed in polygons
 
         unlink_geom = unlink.geometry()
-        if self.buffer:
+        if self.buffer != 0 and self.buffer:
             unlink_geom = unlink_geom.buffer(self.buffer, 36)
         lines = filter(lambda i: unlink_geom.intersects(self.feats[i].geometry()),
                        self.spIndex.intersects(unlink_geom.boundingBox()))
+        lines = list(set(lines))
         #if unlink_geom.wkbType() == 3:
         if len(lines) != 2:
-            self.invalid_unlinks.append(unlink_geom.asPoint())
+            self.invalid_unlinks.append(unlink_geom.centroid().asPoint())
         else:
 
             line1_geom = self.feats[lines[0]].geometry()
             line2_geom = self.feats[lines[1]].geometry()
             unlink_geom = line1_geom.intersection(line2_geom)
-            unlink_geom_p = unlink_geom.asPoint()
+            unlink_geom_p = unlink_geom.centroid().asPoint()
             if unlink_geom_p in line1_geom.asPolyline():
                 # what if unlink on polyline vertices
                 self.invalid_unlinks.append(unlink_geom_p)
@@ -77,8 +78,8 @@ class segmentor(QObject):
                 self.invalid_unlinks.append(unlink_geom_p)
             else:
                 # save point and not line - if line unlinked by one line in two points
-                self.unlinks_points[lines[0]].append(unlink_geom.asPoint())
-                self.unlinks_points[lines[1]].append(unlink_geom.asPoint())
+                self.unlinks_points[lines[0]].append(unlink_geom.centroid().asPoint())
+                self.unlinks_points[lines[1]].append(unlink_geom.centroid().asPoint())
         return True
 
     # for every line explode and crossings
@@ -121,7 +122,11 @@ class segmentor(QObject):
         f_geom = feat.geometry()
         inter_lines = filter(lambda line: feat.geometry().distance(self.feats[line].geometry()) <= 0.00001,
                              self.spIndex.intersects(f_geom.boundingBox()))
-        cross_p = [p for (factor, p) in sorted(set(self.point_iter(inter_lines, f_geom))) if p not in self.unlinks_points[feat.id()]]
+        # TODO: group by factor because some times slightly different points are returned
+        # TODO: keep order
+        cross_p = {factor: p for (factor, p) in sorted(set(self.point_iter(inter_lines, f_geom))) if p not in self.unlinks_points[feat.id()]}
+        cross_p = sorted(cross_p.items())
+        cross_p = [p for (factor, p) in cross_p]
 
         if self.stub_ratio:
             cross_p = map(lambda p: p, self.stubs_clean_iter(cross_p, f_geom.asPolyline()))
