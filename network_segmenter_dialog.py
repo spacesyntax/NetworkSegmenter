@@ -79,6 +79,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
             self.postgisRadioButton.clicked.connect(self.setDbOutput)
         else:
             self.postgisRadioButton.setDisabled(True)
+            self.dbsettings_dlg = DbSettingsDialog({})
 
         # add GUI signals
         self.stubsCheckBox.stateChanged.connect(self.set_enabled_tolerance)

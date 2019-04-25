@@ -225,14 +225,28 @@ class NetworkSegmenterTool(QObject):
 
             break_lines, break_points = ret
             print len(break_lines), 'ret'
+
+            if output_type == 'shapefile':
+                output_path = path[:-4] + "_seg.shp"
+            elif output_type == 'postgis':
+                output_path = dict(path)
+                output_path['table_name'] = output_path['table_name'] + '_seg'
+
             segmented = to_layer(break_lines, layer.crs(), layer.dataProvider().encoding(),
-                                 2, output_type, path,
+                                 2, output_type, output_path,
                                  layer_name + '_seg')
             QgsMapLayerRegistry.instance().addMapLayer(segmented)
             segmented.updateExtents()
+
             if self.settings['errors']:
+                errors_path = None
+                if output_type == 'shapefile':
+                    errors_path = path[:-4] + "_break_points.shp"
+                elif output_type == 'postgis':
+                    errors_path = dict(path)
+                    errors_path['table_name'] = errors_path['table_name'] + '_break_points'
                 errors = to_layer(break_points, layer.crs(), layer.dataProvider().encoding(), 1, output_type,
-                                  (path[0], path[1], path[2] + "_break_points"), path[2] + "_break_points")
+                                  errors_path, layer_name + "_break_points")
                 errors.loadNamedStyle(os.path.dirname(__file__) + '/errors_style.qml')
                 QgsMapLayerRegistry.instance().addMapLayer(errors)
                 self.iface.legendInterface().refreshLayerSymbology(errors)
