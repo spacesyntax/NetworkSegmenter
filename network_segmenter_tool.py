@@ -114,13 +114,17 @@ class NetworkSegmenterTool(QObject):
     def getQGISDbs(self):
         """Return all PostGIS connection settings stored in QGIS
         :return: connection dict() with name and other settings
-        """
+                """
         settings = QSettings()
         settings.beginGroup('/PostgreSQL/connections')
         named_dbs = settings.childGroups()
-        all_info = [i.split("/") + [unicode(settings.value(i))] for i in settings.allKeys() if settings.value(i) != NULL and settings.value(i)!= '']
-        all_info = [i for i in all_info if i[0] in named_dbs and i[2] != NULL and i[1] in ['name', 'host', 'service', 'password', 'username', 'port']]
-        dbs = dict([k, dict([i[1:] for i in list(g)])] for k, g in itertools.groupby(sorted(all_info), operator.itemgetter(0)))
+        all_info = [i.split("/") + [unicode(settings.value(i))] for i in settings.allKeys() if
+                    settings.value(i) != NULL and settings.value(i) != '']
+        all_info = [i for i in all_info if
+                    i[0] in named_dbs and i[2] != NULL and i[1] in ['name', 'host', 'service', 'password', 'username',
+                                                                    'port']]
+        dbs = dict(
+            [k, dict([i[1:] for i in list(g)])] for k, g in itertools.groupby(sorted(all_info), operator.itemgetter(0)))
         settings.endGroup()
         return dbs
 
@@ -202,9 +206,6 @@ class NetworkSegmenterTool(QObject):
         layer_name = self.settings['input']
         path = self.settings['output']
         output_type = self.settings['output_type']
-        if output_type == 'postgis':
-            (dbname, schema_name, table_name) = path.split(':')
-            path = (self.dlg.dbsettings_dlg.connstring, schema_name, table_name)
         #  get settings from layer
         layer = getLayerByName(layer_name)
         # create the segmenting results layers
@@ -231,6 +232,8 @@ class NetworkSegmenterTool(QObject):
             elif output_type == 'postgis':
                 output_path = dict(path)
                 output_path['table_name'] = output_path['table_name'] + '_seg'
+            else:
+                output_path = None
 
             segmented = to_layer(break_lines, layer.crs(), layer.dataProvider().encoding(),
                                  2, output_type, output_path,

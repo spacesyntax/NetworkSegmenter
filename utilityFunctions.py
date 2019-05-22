@@ -33,6 +33,7 @@ def prototype_feature(attrs, fields):
 
 
 # SOURCE: ESS TOOLKIT
+
 def getPostgisSchemas(connstring, commit=False):
     """Execute query (string) with given parameters (tuple)
     (optionally perform commit to save Db)
@@ -109,9 +110,22 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
             # error = QgsVectorLayerImport.importLayer(mem_layer, path, "postgres", crs, False, False)
             # if error[0] != 0: print u'Error', error[1]
 
-            (connstring, schema_name, table_name) = path
-
-            uri = connstring + """ type=""" + geom_types[geom_type] + """ table=\"""" + schema_name + """\".\"""" + table_name + """\" (geom) """
+            connstring = ''
+            if path['service'] is None:
+                del path['service']
+            if path['user'] is None:
+                path['user'] = ''
+            if path['password'] is None:
+                path['password'] = ''
+            for k, v in path.items():
+                if k not in ['table_name', 'schema']:
+                    connstring += str(k) + '=' + str(v) + ' '
+            #if 'service' in path.keys():
+            #    pass
+            #else:
+            #    connstring += 'dbname=' + path['dbname']
+            
+            uri = connstring + """ type=""" + geom_types[geom_type] + """ table=\"""" + path['schema'] + """\".\"""" + path['table_name'] + """\" (geom) """
             print uri , 'POSTGIS'
 
             con = psycopg2.connect(connstring)
@@ -128,7 +142,7 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
 
             query = cur.mogrify(
                 """DROP TABLE IF EXISTS %s.%s; CREATE TABLE %s.%s(%s geom geometry(%s, %s))""", (
-                AsIs(schema_name), AsIs(table_name), AsIs(schema_name), AsIs(table_name), AsIs(postgis_flds_q), geom_types[geom_type],  AsIs(crs_id)))
+                AsIs(schema), AsIs(table_name), AsIs(schema), AsIs(table_name), AsIs(postgis_flds_q), geom_types[geom_type],  AsIs(crs_id)))
             cur.execute(query)
             con.commit()
 
@@ -136,10 +150,10 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
             args_str = ','.join(
                 map(lambda (attrs, wkt): rmv_parenthesis(cur.mogrify("%s,ST_GeomFromText(%s,%s))", (tuple(attrs), wkt, AsIs(crs_id)))), tuple(data)))
 
-            ins_str = cur.mogrify("""INSERT INTO %s.%s VALUES """, (AsIs(schema_name), AsIs(table_name)))
+            ins_str = cur.mogrify("""INSERT INTO %s.%s VALUES """, (AsIs(schema), AsIs(table_name)))
             cur.execute(ins_str + args_str)
             con.commit()
-            query = cur.mogrify( """ALTER TABLE %s.%s DROP COLUMN IF EXISTS segm_id, ADD COLUMN segm_id serial PRIMARY KEY""", (AsIs(schema_name), AsIs(table_name)))
+            query = cur.mogrify( """ALTER TABLE %s.%s DROP COLUMN IF EXISTS segm_id, ADD COLUMN segm_id serial PRIMARY KEY""", (AsIs(schema), AsIs(table_name)))
             cur.execute(query)
             con.commit()
             con.close()
