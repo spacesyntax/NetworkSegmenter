@@ -77,8 +77,7 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
     fields = first_feat.fields()
     layer = None
     if layer_type == 'memory':
-        geom_types = {1: 'Point', 2: 'Linestring', 3:'Polygon'}
-        layer = QgsVectorLayer(geom_types[geom_type] + '?crs=' + crs.authid(), name, "memory")
+        layer = QgsVectorLayer(geom_type + '?crs=' + crs.authid(), name, "memory")
         pr = layer.dataProvider()
         pr.addAttributes(fields.toList())
         layer.updateFields()
@@ -87,13 +86,12 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
         layer.commitChanges()
 
     elif layer_type == 'shapefile':
-        file_writer = QgsVectorFileWriter(path, encoding, fields, geom_type, crs, "ESRI Shapefile")
-        print path, encoding, fields, geom_type, crs
+
+        wkbTypes = { 'Point': QGis.WKBPoint, 'Linestring': QGis.WKBLineString, 'Polygon': QGis.WKBPolygon }
+        file_writer = QgsVectorFileWriter(path, encoding, fields, wkbTypes[geom_type], crs, "ESRI Shapefile")
         if file_writer.hasError() != QgsVectorFileWriter.NoError:
             print "Error when creating shapefile: ", file_writer.errorMessage()
         del file_writer
-        name = ntpath.basename(path)
-        # TODO: get name from path 
         layer = QgsVectorLayer(path, name, "ogr")
         pr = layer.dataProvider()
         layer.startEditing()
@@ -101,68 +99,33 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
         layer.commitChanges()
 
     elif layer_type == 'postgis':
-        crs_id = crs.postgisSrid()
-        geom_types = {1: 'Point', 2: 'Linestring', 3: 'Polygon', 4: 'MultiPoint', 5: 'MultiLineString', 6: 'MultiPolygon'}
-        post_q_flds = {2: 'bigint', 6: 'numeric', 1: 'bool', 'else': 'text'}
-        try:
-            # crs = QgsCoordinateReferenceSystem(crs_id, QgsCoordinateReferenceSystem.EpsgCrsId)
-            # mem_layer = to_layer(features, crs, encoding, geom_type, 'memory', path, name)
-            # error = QgsVectorLayerImport.importLayer(mem_layer, path, "postgres", crs, False, False)
-            # if error[0] != 0: print u'Error', error[1]
 
-            connstring = ''
-            if path['service'] is None:
-                del path['service']
-            if path['user'] is None:
-                path['user'] = ''
-            if path['password'] is None:
-                path['password'] = ''
-            for k, v in path.items():
-                if k not in ['table_name', 'schema']:
-                    connstring += str(k) + '=' + str(v) + ' '
-            #if 'service' in path.keys():
-            #    pass
-            #else:
-            #    connstring += 'dbname=' + path['dbname']
-            
-            uri = connstring + """ type=""" + geom_types[geom_type] + """ table=\"""" + path['schema'] + """\".\"""" + path['table_name'] + """\" (geom) """
-            print uri , 'POSTGIS'
+        layer = QgsVectorLayer(geom_type + '?crs=' + crs.authid(), name, "memory")
+        pr = layer.dataProvider()
+        pr.addAttributes(fields.toList())
+        layer.updateFields()
+        layer.startEditing()
+        pr.addFeatures(features)
+        layer.commitChanges()
+        uri = QgsDataSourceURI()
+        # passwords, usernames need to be empty if not provided or else connection will fail
+        if path['service']:
+            uri.setConnection(path['service'], path['database'], '', '')
+        elif path['password']:
+            uri.setConnection(path['host'], path['port'], path['database'], path['user'], path['password'])
+        else:
+            uri.setConnection(path['host'], path['port'], path['database'], path['user'], '')
+        #uri = "dbname='test' host=localhost port=5432 user='user' password='password' key=gid type=POINT table=\"public\".\"test\" (geom) sql="
+        #crs = QgsCoordinateReferenceSystem(int(crs.postgisSrid()), QgsCoordinateReferenceSystem.EpsgCrsId)
+        # layer - QGIS vector layer
+        uri.setDataSource(path['schema'], path['table_name'], "geom")
+        error = QgsVectorLayerImport.importLayer(layer, uri.uri(), "postgres", crs, False, False)
+        if error[0] != 0:
+            print "Error when creating postgis layer: ", error[1]
 
-            con = psycopg2.connect(connstring)
-            cur = con.cursor()
+        print uri.uri()
+        layer = QgsVectorLayer(uri.uri(), name, "postgres")
 
-            postgis_flds_q = """"""
-            for f in fields:
-                f_name = '\"' + f.name() + '\"'
-                try:
-                    f_type = post_q_flds[f.type()]
-                except KeyError:
-                    f_type = post_q_flds['else']
-                postgis_flds_q += cur.mogrify("""%s %s,""", (AsIs(f_name), AsIs(f_type)))
-
-            query = cur.mogrify(
-                """DROP TABLE IF EXISTS %s.%s; CREATE TABLE %s.%s(%s geom geometry(%s, %s))""", (
-                AsIs(schema), AsIs(table_name), AsIs(schema), AsIs(table_name), AsIs(postgis_flds_q), geom_types[geom_type],  AsIs(crs_id)))
-            cur.execute(query)
-            con.commit()
-
-            data = map(lambda f: (clean_nulls(f.attributes()), f.geometry().exportToWkt()), features)
-            args_str = ','.join(
-                map(lambda (attrs, wkt): rmv_parenthesis(cur.mogrify("%s,ST_GeomFromText(%s,%s))", (tuple(attrs), wkt, AsIs(crs_id)))), tuple(data)))
-
-            ins_str = cur.mogrify("""INSERT INTO %s.%s VALUES """, (AsIs(schema), AsIs(table_name)))
-            cur.execute(ins_str + args_str)
-            con.commit()
-            query = cur.mogrify( """ALTER TABLE %s.%s DROP COLUMN IF EXISTS segm_id, ADD COLUMN segm_id serial PRIMARY KEY""", (AsIs(schema), AsIs(table_name)))
-            cur.execute(query)
-            con.commit()
-            con.close()
-
-            layer = QgsVectorLayer(uri, table_name, 'postgres')
-        except psycopg2.DatabaseError, e:
-            print e
-    else:
-        print "file type not supported"
     return layer
 
 

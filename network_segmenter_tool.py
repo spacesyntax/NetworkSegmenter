@@ -236,7 +236,7 @@ class NetworkSegmenterTool(QObject):
                 output_path = None
 
             segmented = to_layer(break_lines, layer.crs(), layer.dataProvider().encoding(),
-                                 2, output_type, output_path,
+                                 'Linestring', output_type, output_path,
                                  layer_name + '_seg')
             QgsMapLayerRegistry.instance().addMapLayer(segmented)
             segmented.updateExtents()
@@ -248,7 +248,7 @@ class NetworkSegmenterTool(QObject):
                 elif output_type == 'postgis':
                     errors_path = dict(path)
                     errors_path['table_name'] = errors_path['table_name'] + '_break_points'
-                errors = to_layer(break_points, layer.crs(), layer.dataProvider().encoding(), 1, output_type,
+                errors = to_layer(break_points, layer.crs(), layer.dataProvider().encoding(), 'Point', output_type,
                                   errors_path, layer_name + "_break_points")
                 errors.loadNamedStyle(os.path.dirname(__file__) + '/errors_style.qml')
                 QgsMapLayerRegistry.instance().addMapLayer(errors)
