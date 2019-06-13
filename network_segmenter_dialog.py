@@ -73,21 +73,26 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
         self.outputCleaned.setDisabled(False)
         if available_dbs:
-            self.postgisRadioButton.setDisabled(False)
-            self.dbsettings_dlg = DbSettingsDialog(available_dbs)
-            self.dbsettings_dlg.setDbOutput.connect(self.setDbOutput)
-            self.postgisRadioButton.clicked.connect(self.setDbOutput)
+            pass
         else:
-            self.postgisRadioButton.setDisabled(True)
-            self.dbsettings_dlg = DbSettingsDialog({})
+            available_dbs = {}
+        self.postgisRadioButton.setDisabled(False)
+
+        # initialise nut do not connect to popschemas
+        self.dbsettings_dlg = DbSettingsDialog(available_dbs)
+        self.postgisRadioButton.clicked.connect(self.setDbOutput)
+        self.dbsettings_dlg.dbCombo.currentIndexChanged.connect(self.setDbPath)
+        self.dbsettings_dlg.schemaCombo.currentIndexChanged.connect(self.setDbPath)
+        self.dbsettings_dlg.nameLineEdit.textChanged.connect(self.setDbPath)
 
         # add GUI signals
         self.stubsCheckBox.stateChanged.connect(self.set_enabled_tolerance)
         self.browseCleaned.clicked.connect(self.setOutput)
 
         self.memoryRadioButton.clicked.connect(self.setTempOutput)
-        self.memoryRadioButton.clicked.connect(self.update_output_text)
+        self.setTempOutput()
         self.shpRadioButton.clicked.connect(self.setShpOutput)
+        self.outputCleaned.setDisabled(True)
 
         #if self.memoryRadioButton.isChecked():
         #    self.outputCleaned.setText(self.getNetwork() + "_seg")
@@ -109,35 +114,19 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
     def getOutput(self):
         if self.shpRadioButton.isChecked():
-            return self.outputCleaned.text()
+            shp_path = self.outputCleaned.text()
+            return shp_path, shp_path[:-4] + "_breakpoints.shp"
         elif self.postgisRadioButton.isChecked():
-            # get from available dbs
-            # path = {'database':, 'service':, 'host': , 'port': , 'password': , 'user': , 'schema':}
-            database, schema, table_name = self.outputCleaned.text().split(':')
             try:
-                service = self.dbsettings_dlg.available_dbs[database]['service']
-            except KeyError:
-                service = None
-            try:
-                host = self.dbsettings_dlg.available_dbs[database]['host']
-            except KeyError:
-                host = None
-            try:
-                port = self.dbsettings_dlg.available_dbs[database]['port']
-            except KeyError:
-                port = None
-            try:
-                password = self.dbsettings_dlg.available_dbs[database]['password']
-            except KeyError:
-                password = None
-            try:
-                user = self.dbsettings_dlg.available_dbs[database]['user']
-            except KeyError:
-                user = None
-            return {'database': database, 'service': service, 'host': host, 'port': port, 'password': password,
-                    'user': user, 'schema': schema, 'table_name': table_name}
+                database, schema, table_name = self.outputCleaned.text().split(':')
+                db_path = self.dbsettings_dlg.connstring, schema, table_name
+                db_path_errors = list(db_path)
+                db_path_errors[2] = db_path[2][:-3] + 'breakpoints'
+                return db_path, tuple(db_path_errors)
+            except ValueError:
+                return '', ''
         else:
-            return None
+            return None, None
 
     def popActiveLayers(self, layers_list):
         self.inputCombo.clear()
@@ -189,13 +178,6 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
     def get_breakages(self):
         return self.breakagesCheckBox.isChecked()
 
-    # TODO: return layer_name + '_segm'
-    def update_output_text(self):
-        if self.memoryRadioButton.isChecked():
-            return self.getNetwork() + "_seg"
-        else:
-            return
-
     def get_output_type(self):
         if self.shpRadioButton.isChecked():
             return 'shapefile'
@@ -237,13 +219,18 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.disable_browse()
         if self.postgisRadioButton.isChecked():
             self.outputCleaned.clear()
+
+            self.outputCleaned.setDisabled(True)
+
+    def setDbPath(self):
+        if self.postgisRadioButton.isChecked():
             try:
                 self.dbsettings = self.dbsettings_dlg.getDbSettings()
-                db_layer_name = "%s:%s:%s" % (self.dbsettings['dbname'], self.dbsettings['schema'], self.dbsettings['table_name'])
+                db_layer_name = "%s:%s:%s" % (
+                self.dbsettings['dbname'], self.dbsettings['schema'], self.dbsettings['table_name'])
                 self.outputCleaned.setText(db_layer_name)
             except:
                 self.outputCleaned.clear()
-            self.outputCleaned.setDisabled(True)
 
     def setTempOutput(self):
         self.disable_browse()

@@ -35,9 +35,6 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 
 class DbSettingsDialog(QtGui.QDialog, FORM_CLASS):
 
-    closingPlugin = pyqtSignal()
-    setDbOutput = pyqtSignal()
-
     def __init__(self, available_dbs, parent=None):
         """Constructor."""
         super(DbSettingsDialog, self).__init__(parent)
@@ -50,16 +47,9 @@ class DbSettingsDialog(QtGui.QDialog, FORM_CLASS):
 
         self.available_dbs = available_dbs
         self.connstring = None
-
+        self.popDbs()
         self.okButton.clicked.connect(self.close)
         self.dbCombo.currentIndexChanged.connect(self.popSchemas)
-        self.dbCombo.currentIndexChanged.connect(self.setDbOutput)
-        self.schemaCombo.currentIndexChanged.connect(self.setDbOutput)
-        self.nameLineEdit.textChanged.connect(self.setDbOutput)
-
-        self.popDbs()
-        if self.dbCombo.currentText() in self.available_dbs.keys():
-            self.popSchemas()
 
     def popDbs(self):
         self.dbCombo.clear()
@@ -97,12 +87,13 @@ class DbSettingsDialog(QtGui.QDialog, FORM_CLASS):
             del db_info['username']
         except KeyError:
             pass
+        try:
+            db_info['dbname'] = db_info['database']
+            del db_info['database']
+        except KeyError:
+            pass
         for k, v in db_info.items():
             self.connstring += str(k) + '=' + str(v) + ' '
-        if 'service' in db_info.keys():
-            pass
-        else:
-            self.connstring += 'dbname=' + str(selected_db)
         return
 
     def closeEvent(self, event):

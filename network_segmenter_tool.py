@@ -48,6 +48,9 @@ except ImportError, e:
 
 class NetworkSegmenterTool(QObject):
 
+    closingPlugin = pyqtSignal()
+    setDbOutput = pyqtSignal()
+
     # initialise class with self and iface
     def __init__(self, iface):
         QObject.__init__(self)
@@ -122,7 +125,7 @@ class NetworkSegmenterTool(QObject):
                     settings.value(i) != NULL and settings.value(i) != '']
         all_info = [i for i in all_info if
                     i[0] in named_dbs and i[2] != NULL and i[1] in ['name', 'host', 'service', 'password', 'username',
-                                                                    'port']]
+                                                                    'port', 'database']]
         dbs = dict(
             [k, dict([i[1:] for i in list(g)])] for k, g in itertools.groupby(sorted(all_info), operator.itemgetter(0)))
         settings.endGroup()
@@ -174,7 +177,7 @@ class NetworkSegmenterTool(QObject):
             db_settings = self.dlg.get_dbsettings()
             self.settings.update(db_settings)
 
-        if self.settings['input']:
+        if self.settings['output'] != '':
             segmenting = self.Worker(self.settings , self.iface)
             self.dlg.lockGUI(True)
             # start the segmenting in a new thread
@@ -204,7 +207,7 @@ class NetworkSegmenterTool(QObject):
         # get segmenting settings
         self.dlg.lockGUI(False)
         layer_name = self.settings['input']
-        path = self.settings['output']
+        output_path, errors_path = self.settings['output']
         output_type = self.settings['output_type']
         #  get settings from layer
         layer = getLayerByName(layer_name)
@@ -227,14 +230,6 @@ class NetworkSegmenterTool(QObject):
             break_lines, break_points = ret
             print len(break_lines), 'ret'
 
-            if output_type == 'shapefile':
-                output_path = path[:-4] + "_seg.shp"
-            elif output_type == 'postgis':
-                output_path = dict(path)
-                output_path['table_name'] = output_path['table_name'] + '_seg'
-            else:
-                output_path = None
-
             segmented = to_layer(break_lines, layer.crs(), layer.dataProvider().encoding(),
                                  'Linestring', output_type, output_path,
                                  layer_name + '_seg')
@@ -242,17 +237,14 @@ class NetworkSegmenterTool(QObject):
             segmented.updateExtents()
 
             if self.settings['errors']:
-                errors_path = None
-                if output_type == 'shapefile':
-                    errors_path = path[:-4] + "_break_points.shp"
-                elif output_type == 'postgis':
-                    errors_path = dict(path)
-                    errors_path['table_name'] = errors_path['table_name'] + '_break_points'
-                errors = to_layer(break_points, layer.crs(), layer.dataProvider().encoding(), 'Point', output_type,
-                                  errors_path, layer_name + "_break_points")
-                errors.loadNamedStyle(os.path.dirname(__file__) + '/errors_style.qml')
-                QgsMapLayerRegistry.instance().addMapLayer(errors)
-                self.iface.legendInterface().refreshLayerSymbology(errors)
+                if len(break_points) == 0:
+                    self.giveMessage('No points detected!', QgsMessageBar.INFO)
+                else:
+                    errors = to_layer(break_points, layer.crs(), layer.dataProvider().encoding(), 'Point', output_type,
+                                      errors_path, layer_name + "_break_points")
+                    errors.loadNamedStyle(os.path.dirname(__file__) + '/errors_style.qml')
+                    QgsMapLayerRegistry.instance().addMapLayer(errors)
+                    self.iface.legendInterface().refreshLayerSymbology(errors)
 
             self.giveMessage('Process ended successfully!', QgsMessageBar.INFO)
 
