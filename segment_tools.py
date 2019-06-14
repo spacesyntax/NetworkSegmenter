@@ -35,7 +35,7 @@ class segmentor(QObject):
 
         fields = QgsFields()
         fields.append(QgsField('type', QVariant.String))
-        self.break_f = prototype_feature(['break point'], fields)
+        self.break_f = prototype_feature(['break segmentorpoint'], fields)
         self.invalid_unlink_f = prototype_feature(['invalid unlink'], fields)
         self.stub_f = prototype_feature(['stub'], fields)
 
@@ -50,7 +50,7 @@ class segmentor(QObject):
 
         # unlink validity
         if self.unlinks:
-            res = map(lambda unlink: self.load_unlink(unlink), self.unlinks.getFeatures())
+            res = map(lambda unlink: self.load_unlink(unlink), filter(lambda u: u.geometry() is not NULL and u.geometry(), self.unlinks.getFeatures()))
         del res
         return
 
@@ -228,6 +228,8 @@ class segmentor(QObject):
             f_geom = f.geometry()
             if self.killed is True:
                 break
+            elif f.geometry() is NULL:
+                pass
             elif not f.geometry(): # NULL geometries
                 pass
             elif f_geom.length() == 0:

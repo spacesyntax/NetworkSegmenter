@@ -144,7 +144,10 @@ class NetworkSegmenterTool(QObject):
         self.dlg.popActiveLayers(layers)
 
     def updateOutputName(self):
-        self.dlg.outputCleaned.setText(self.dlg.inputCombo.currentText() + "_seg")
+        if self.dlg.memoryRadioButton.isChecked():
+            self.dlg.outputCleaned.setText(self.dlg.inputCombo.currentText() + "_seg")
+        else:
+            self.dlg.outputCleaned.clear()
         self.dlg.dbsettings_dlg.nameLineEdit.setText(self.dlg.inputCombo.currentText() + "_seg")
 
     def getpntplgLayers(self):
