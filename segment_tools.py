@@ -1,6 +1,6 @@
 import itertools
 from PyQt4.QtCore import QObject, pyqtSignal, QVariant
-from qgis.core import QgsSpatialIndex, QgsGeometry, QgsDistanceArea, QgsFeature, QgsField, QgsFields
+from qgis.core import QgsSpatialIndex, QgsGeometry, QgsDistanceArea, QgsFeature, QgsField, QgsFields, NULL
 import traceback
 
 try:
