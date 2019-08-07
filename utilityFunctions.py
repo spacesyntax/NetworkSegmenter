@@ -71,13 +71,13 @@ def getPostgisSchemas(connstring, commit=False):
 
 # -------------------------- LAYER BUILD
 
-def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
+def to_layer(features, crs, encoding, geom_type, layer_type, path):
 
     first_feat = features[0]
     fields = first_feat.fields()
     layer = None
     if layer_type == 'memory':
-        layer = QgsVectorLayer(geom_type + '?crs=' + crs.authid(), name, "memory")
+        layer = QgsVectorLayer(geom_type + '?crs=' + crs.authid(), path, "memory")
         pr = layer.dataProvider()
         pr.addAttributes(fields.toList())
         layer.updateFields()
@@ -92,7 +92,7 @@ def to_layer(features, crs, encoding, geom_type, layer_type, path, name):
         if file_writer.hasError() != QgsVectorFileWriter.NoError:
             print "Error when creating shapefile: ", file_writer.errorMessage()
         del file_writer
-        layer = QgsVectorLayer(path, name, "ogr")
+        layer = QgsVectorLayer(path, ntpath.basename(path)[:-4], "ogr")
         pr = layer.dataProvider()
         layer.startEditing()
         pr.addFeatures(features)

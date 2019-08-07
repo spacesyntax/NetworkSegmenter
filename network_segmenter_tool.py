@@ -180,7 +180,9 @@ class NetworkSegmenterTool(QObject):
             db_settings = self.dlg.get_dbsettings()
             self.settings.update(db_settings)
 
-        if self.settings['output'] != '':
+        if getLayerByName(self.settings['input']).crs().postgisSrid() == 4326:
+            self.giveMessage('Re-project the layer. EPSG:4326 not allowed.', QgsMessageBar.INFO)
+        elif self.settings['output'] != '':
             segmenting = self.Worker(self.settings , self.iface)
             self.dlg.lockGUI(True)
             # start the segmenting in a new thread
@@ -234,8 +236,7 @@ class NetworkSegmenterTool(QObject):
             print len(break_lines), 'ret'
 
             segmented = to_layer(break_lines, layer.crs(), layer.dataProvider().encoding(),
-                                 'Linestring', output_type, output_path,
-                                 layer_name + '_seg')
+                                 'Linestring', output_type, output_path)
             QgsMapLayerRegistry.instance().addMapLayer(segmented)
             segmented.updateExtents()
 
@@ -244,7 +245,7 @@ class NetworkSegmenterTool(QObject):
                     self.giveMessage('No points detected!', QgsMessageBar.INFO)
                 else:
                     errors = to_layer(break_points, layer.crs(), layer.dataProvider().encoding(), 'Point', output_type,
-                                      errors_path, layer_name + "_break_points")
+                                      errors_path)
                     errors.loadNamedStyle(os.path.dirname(__file__) + '/errors_style.qml')
                     QgsMapLayerRegistry.instance().addMapLayer(errors)
                     self.iface.legendInterface().refreshLayerSymbology(errors)

@@ -35,7 +35,7 @@ class segmentor(QObject):
 
         fields = QgsFields()
         fields.append(QgsField('type', QVariant.String))
-        self.break_f = prototype_feature(['break segmentorpoint'], fields)
+        self.break_f = prototype_feature(['break point'], fields)
         self.invalid_unlink_f = prototype_feature(['invalid unlink'], fields)
         self.stub_f = prototype_feature(['stub'], fields)
 
@@ -193,7 +193,9 @@ class segmentor(QObject):
 
             if QgsDistanceArea().measureLine(pnt, cross_p[1]) >= self.stub_ratio * QgsDistanceArea().measureLine(pnt, f_pl[1]):
                 yield pnt
-            elif self.connectivity[(pnt.x(), pnt.y())] == 1:
+
+            #elif self.connectivity[(pnt.x(), pnt.y())] == 1:
+            elif self.get_no_inter_lines(pnt) == 1:
                 self.stubs_points.append(pnt)
                 pass
             else:
@@ -203,13 +205,21 @@ class segmentor(QObject):
         for pnt in cross_p[-1:]:
             if QgsDistanceArea().measureLine(pnt, cross_p[-2]) >= self.stub_ratio * QgsDistanceArea().measureLine(pnt, f_pl[-2]):
                 yield pnt
-            elif self.connectivity[(pnt.x(), pnt.y())] == 1:
+            elif self.get_no_inter_lines(pnt) == 1:
+
+            #elif self.connectivity[(pnt.x(), pnt.y())] == 1:
                 self.stubs_points.append(pnt)
                 pass
             else:
                 yield pnt
 
-    def copy_feat(self,f, geom, id):
+    def get_no_inter_lines(self, point):
+        point_geom = QgsGeometry.fromPoint(point)
+        lines = self.spIndex.intersects(point_geom.boundingBox())
+        filtered_lines = filter(lambda l: self.feats[l].geometry().intersects(point_geom) , lines)
+        return len(set(filtered_lines))
+
+    def copy_feat(self, f, geom, id):
         copy_feat = QgsFeature(f)
         copy_feat.setGeometry(geom)
         copy_feat.setFeatureId(id)
@@ -241,14 +251,14 @@ class segmentor(QObject):
                 f_pl = f_geom.asPolyline()
                 start_p = (f_pl[0].x(), f_pl[0].y())
                 end_p = (f_pl[-1].x(), f_pl[-1].y())
-                try:
-                    self.connectivity[start_p] += 1
-                except KeyError:
-                    self.connectivity[start_p] = 1
-                try:
-                    self.connectivity[end_p] += 1
-                except KeyError:
-                    self.connectivity[end_p] = 1
+                #try:
+                #    self.connectivity[start_p] += 1
+                #except KeyError:
+                #    self.connectivity[start_p] = 1
+                #try:
+                #    self.connectivity[end_p] += 1
+                #except KeyError:
+                #    self.connectivity[end_p] = 1
                 yield f
             elif f_geom.wkbType() == 5:
                 ml_segms = f_geom.asMultiPolyline()
@@ -257,18 +267,20 @@ class segmentor(QObject):
                     ml_feat = self.copy_feat(f, ml_geom, id)
                     self.feats[id] = ml_feat
                     id += 1
-                    f_pl = ml_feat.asPolyline()
+                    f_pl = ml_geom.asPolyline()
                     start_p = (f_pl[0].x(), f_pl[0].y())
                     end_p = (f_pl[-1].x(), f_pl[-1].y())
-                    try:
-                        self.connectivity[start_p] += 1
-                    except KeyError:
-                        self.connectivity[start_p] = 1
-                    try:
-                        self.connectivity[end_p] += 1
-                    except KeyError:
-                        self.connectivity[end_p] = 1
+                    #try:
+                    #    self.connectivity[start_p] += 1
+                    #except KeyError:
+                    #    self.connectivity[start_p] = 1
+                    #try:
+                    #    self.connectivity[end_p] += 1
+                    #except KeyError:
+                    #    self.connectivity[end_p] = 1
                     yield ml_feat
+            #if f["id_0"] == 163446:
+            #    QgsMessageLog.logMessage('Start: %s %s' % self.connectivity[start_p],  self.connectivity[end_p], level=QgsMessageLog.CRITICAL)
 
     def kill(self):
         self.killed = True

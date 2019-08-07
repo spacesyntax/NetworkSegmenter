@@ -121,12 +121,13 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
                 database, schema, table_name = self.outputCleaned.text().split(':')
                 db_path = self.dbsettings_dlg.connstring, schema, table_name
                 db_path_errors = list(db_path)
-                db_path_errors[2] = db_path[2][:-3] + 'breakpoints'
+                db_path_errors[2] = db_path[2] + '_breakpoints'
                 return db_path, tuple(db_path_errors)
             except ValueError:
                 return '', ''
         else:
-            return None, None
+            temp_name = self.outputCleaned.text()
+            return temp_name, temp_name + '_breakpoints'
 
     def popActiveLayers(self, layers_list):
         self.inputCombo.clear()
