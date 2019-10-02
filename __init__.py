@@ -31,5 +31,5 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :type iface: QgsInterface
     """
     #
-    from .network_segmenter import NetworkSegmenter
+    from network_segmenter import NetworkSegmenter
     return NetworkSegmenter(iface)

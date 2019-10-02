@@ -69,7 +69,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
         self.memoryRadioButton.setChecked(True)
         self.shpRadioButton.setChecked(False)
         self.postgisRadioButton.setChecked(False)
-        self.browseCleaned.setDisabled(True)
+        self.networkSaveButton.setDisabled(True)
 
         self.outputCleaned.setDisabled(False)
         if available_dbs:
@@ -87,7 +87,7 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
         # add GUI signals
         self.stubsCheckBox.stateChanged.connect(self.set_enabled_tolerance)
-        self.browseCleaned.clicked.connect(self.setOutput)
+        self.networkSaveButton.clicked.connect(self.setOutput)
 
         self.memoryRadioButton.clicked.connect(self.setTempOutput)
         self.setTempOutput()
@@ -172,9 +172,9 @@ class NetworkSegmenterDialog(QtGui.QDialog, FORM_CLASS):
 
     def disable_browse(self):
         if self.memoryRadioButton.isChecked():
-            self.browseCleaned.setDisabled(True)
+            self.networkSaveButton.setDisabled(True)
         else:
-            self.browseCleaned.setDisabled(False)
+            self.networkSaveButton.setDisabled(False)
 
     def get_breakages(self):
         return self.breakagesCheckBox.isChecked()

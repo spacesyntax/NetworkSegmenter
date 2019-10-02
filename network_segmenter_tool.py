@@ -373,3 +373,5 @@ class NetworkSegmenterTool(QObject):
         def kill(self):
             print 'killed'
             self.segm_killed = True
+
+

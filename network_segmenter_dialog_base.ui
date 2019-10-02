@@ -45,7 +45,7 @@
       </widget>
      </item>
      <item row="18" column="2">
-      <widget class="QPushButton" name="browseCleaned">
+      <widget class="QPushButton" name="networkSaveButton">
        <property name="sizePolicy">
         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
          <horstretch>0</horstretch>
